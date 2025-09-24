@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 
 const cors = require('cors');
 
@@ -148,6 +149,17 @@ app.get('/api/lms/piechart-data', (req, res) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
+});
+
+// WhatsApp Chatbot Data Proxy
+app.get('/api/chatbot-data', async (req, res) => {
+  try {
+    const response = await axios.get('https://nirbhaythane.org/thane-admin/chatbot_data.php');
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching chatbot data:', error);
+    res.status(500).json({ error: 'Failed to fetch chatbot data' });
+  }
 });
 
 // Add more routes later
