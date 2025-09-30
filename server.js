@@ -167,7 +167,7 @@ app.get('/api/welfare-dashboard', async (req, res) => {
   try {
     const response = await axios.get('https://dgtraining.in/Police_welfare_management/api/welfare-dashboard', {
       headers: {
-        'X-Api-Key': process.env.WELFARE_API_KEY || "a52f700ff79ad08e39ef17812301ce04c0c6b288abc5bac23f1171328e6fe534"
+        'X-Api-Key': "a52f700ff79ad08e39ef17812301ce04c0c6b288abc5bac23f1171328e6fe534"
       }
     });
     console.log('Welfare API response status:', response.status);
