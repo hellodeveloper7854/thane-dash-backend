@@ -162,6 +162,23 @@ app.get('/api/chatbot-data', async (req, res) => {
   }
 });
 
+// Police Welfare Dashboard Data Proxy
+app.get('/api/welfare-dashboard', async (req, res) => {
+  try {
+    const response = await axios.get('https://dgtraining.in/Police_welfare_management/api/welfare-dashboard', {
+      headers: {
+        'X-Api-Key': 'a52f700ff79ad08e39ef17812301ce04c0c6b288abc5bac23f1171328e6fe534'
+      }
+    });
+    console.log('Welfare API response status:', response.status);
+    console.log('Welfare API response data:', response.data);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching welfare dashboard data:', error.response ? error.response.data : error.message);
+    res.status(500).json({ error: 'Failed to fetch welfare dashboard data', details: error.message });
+  }
+});
+
 // Add more routes later
 
 app.listen(PORT, () => {
