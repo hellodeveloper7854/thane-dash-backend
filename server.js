@@ -123,6 +123,28 @@ app.get('/api/lms/dashboard', (req, res) => {
   });
 });
 
+app.get('/api/lms/dashboard2', (req, res) => {
+  const policeStationId = req.query.policeStationId;
+
+  if (!policeStationId) {
+    return res.status(400).json({ error: "policeStationId is required" });
+  }
+
+  dbLMS.query(
+    `CALL sp_GetDashboardDataByPoliceStation(?)`,
+    [policeStationId],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // results[0] contains first resultset, results[1] second, etc.
+      res.json(results);
+    }
+  );
+});
+
+
 app.get('/api/lms/pending-licenses', (req, res) => {
   dbLMS.query('CALL GetLicenceQuery()', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -150,6 +172,102 @@ app.get('/api/lms/piechart-data', (req, res) => {
     res.json(results);
   });
 });
+
+app.get('/api/lms/dashboard-by-police-station', (req, res) => {
+  dbLMS.query('CALL LicenceWeaponMgtRpt()', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.post('/api/lms/filtered-data', (req, res) => {
+  const { cardIndex, categoryName } = req.body;
+
+  if (!cardIndex || !categoryName) {
+    return res.status(400).json({ error: "cardIndex and categoryName are required" });
+  }
+
+  dbLMS.query(
+    'CALL LicenceWeaponMgtRpt_Filter(?, ?)',
+    [cardIndex, categoryName],
+    (err, results) => {
+      if (err) {
+        console.error("SQL Error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      // results[0] contains SELECT output
+      const output = results[0]?.[0] || {};
+      res.json(output);
+    }
+  );
+});
+
+
+app.get('/api/lms/licenses-list-by-type', (req, res) => {
+  const { type } = req.query;
+
+  if (!type) {
+    return res.status(400).json({ error: "type parameter is required" });
+  }
+
+  dbLMS.query(`CALL GetLicenceListByType(?)`, [type], (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+
+
+
+app.get('/api/lms/pending-licenses-by-police-station', (req, res) => {
+  dbLMS.query('CALL GetLicenceQueryByPoliceStation()', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.get('/api/lms/pending-applications-by-police-station', (req, res) => {
+  dbLMS.query('CALL GetApplicationQueryByPoliceStation()', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+app.get('/api/lms/pending-notices-by-police-station', (req, res) => {
+  dbLMS.query('CALL GetShowCauseNoticeByPoliceStation()', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+
+
+
+app.get('/api/lms/piechart-data-by-police-station', (req, res) => {
+  const policeStationId = req.query.policeStationId;
+
+  // Validate required parameter
+  if (!policeStationId) {
+    return res.status(400).json({ error: "policeStationId is required" });
+  }
+
+  // Call the stored procedure
+  dbLMS.query(
+    `CALL sp_GetPieChartsDataByPoliceStation(?)`,
+    [policeStationId],
+    (err, results) => {
+      if (err) {
+        console.error("Error executing sp_GetPieChartsDataByPoliceStation:", err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      // results[0] contains the main dataset (since your SP returns one combined resultset)
+      res.json(results);
+    }
+  );
+});
+
 
 // WhatsApp Chatbot Data Proxy
 app.get('/api/chatbot-data', async (req, res) => {
