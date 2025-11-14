@@ -218,6 +218,24 @@ app.get('/api/lms/licenses-list-by-type', (req, res) => {
 });
 
 
+app.get('/api/lms/licence-query-reports', (req, res) => {
+  const { reportType } = req.query;
+
+  if (!reportType) {
+    return res.status(400).json({ error: "reportType parameter is required" });
+  }
+
+  dbLMS.query(`CALL sp_LicenceQueryReports(?)`, [reportType], (err, results) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ error: err.message });
+    }
+
+    res.json(results);
+  });
+});
+
+
 
 
 app.get('/api/lms/pending-licenses-by-police-station', (req, res) => {
