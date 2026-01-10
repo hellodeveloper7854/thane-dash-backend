@@ -180,6 +180,13 @@ app.get('/api/lms/dashboard-by-police-station', (req, res) => {
   });
 });
 
+app.get('/api/lms/PoliceStationLicenceCancellationYearWiseRpt', (req, res) => {
+  dbLMS.query('CALL PoliceStationIssuedAndCancelledYearWiseRpt()', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
 app.post('/api/lms/filtered-data', (req, res) => {
   const { cardIndex, categoryName } = req.body;
 
