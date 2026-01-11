@@ -187,6 +187,41 @@ app.get('/api/lms/PoliceStationLicenceCancellationYearWiseRpt', (req, res) => {
   });
 });
 
+
+app.get('/api/lms/licenses-by-year-type-status', (req, res) => {
+  const { year, licenceTypeName, status } = req.query;
+
+  // Validation
+  if (!year || !licenceTypeName || !status) {
+    return res.status(400).json({
+      error: "year, licenceTypeName and status parameters are required"
+    });
+  }
+
+  // Optional: normalize status
+  const normalizedStatus = status.toUpperCase();
+  if (!['ISSUED', 'CANCELLED'].includes(normalizedStatus)) {
+    return res.status(400).json({
+      error: "status must be either ISSUED or CANCELLED"
+    });
+  }
+
+  dbLMS.query(
+    // `CALL GetLicenceDetailsByYearTypeNameAndStatus(?, ?, ?)`,
+    `CALL GetIssuedOrCancelledLicenceDetails(?, ?, ?)`,
+    [year, licenceTypeName, normalizedStatus],
+    (err, results) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // MySQL procedures return nested arrays
+      res.json(results[0]);
+    }
+  );
+});
+
+
 app.post('/api/lms/filtered-data', (req, res) => {
   const { cardIndex, categoryName } = req.body;
 
