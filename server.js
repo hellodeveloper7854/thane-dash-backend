@@ -16,29 +16,8 @@ const PORT = process.env.PORT || 4000;
 const policeMitraRoutes = require('./routes-policemitra');
 const seniorCitizenRoutes = require('./routes-seniorcitizen');
 
-// Allow requests from specific origins
-const allowedOrigins = [
-  'https://cpdashboard.thanepolice.in',
-  'https://cpdashboardbackend.thanepolice.in',
-  'http://localhost:8080',
-  'http://localhost:4000'
-];
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// Enable CORS for all origins
+app.use(cors());
 
 app.use(express.json());
 
