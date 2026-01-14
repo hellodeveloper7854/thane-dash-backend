@@ -12,6 +12,10 @@ const app = express();
 
 const PORT = process.env.PORT || 4000;
 
+// PostgreSQL connections for Police Mitra and Senior Citizen
+const policeMitraRoutes = require('./routes-policemitra');
+const seniorCitizenRoutes = require('./routes-seniorcitizen');
+
 app.use(cors());
 
 app.use(express.json());
@@ -357,6 +361,11 @@ app.get('/api/welfare-dashboard', async (req, res) => {
   }
 });
 
+// Police Mitra API Routes
+app.use('/api/policemitra', policeMitraRoutes);
+
+// Senior Citizen API Routes
+app.use('/api/seniorcitizen', seniorCitizenRoutes);
 // Add more routes later
 
 app.listen(PORT, () => {
