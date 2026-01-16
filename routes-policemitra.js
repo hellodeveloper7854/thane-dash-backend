@@ -90,11 +90,19 @@ router.get('/dashboard/counts', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
+    console.log('🔍 [Backend] Dashboard counts query:', query);
+    console.log('🔍 [Backend] Params:', params);
+
     const result = await queryPoliceMitra(query, params);
+
+    console.log('📊 [Backend] Dashboard raw rows:', result.rowCount);
 
     // Calculate counts
     const counts = {
@@ -110,10 +118,12 @@ router.get('/dashboard/counts', async (req, res) => {
       else if (row.verification_status === 'rejected') counts.rejected++;
     });
 
+    console.log('📊 [Backend] Dashboard aggregated counts:', counts);
+
     res.json(counts);
   } catch (error) {
-    console.error('Error fetching dashboard counts:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard counts' });
+    console.error('❌ [Backend] Error fetching dashboard counts:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard counts', details: error.message });
   }
 });
 
@@ -144,11 +154,19 @@ router.get('/stations/data', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
+    console.log('🔍 [Backend] Station-wise data query:', query);
+    console.log('🔍 [Backend] Params:', params);
+
     const result = await queryPoliceMitra(query, params);
+
+    console.log('📊 [Backend] Station-wise raw rows:', result.rowCount);
 
     // Group by station
     const stationMap = new Map();
@@ -171,10 +189,13 @@ router.get('/stations/data', async (req, res) => {
       else if (row.verification_status === 'rejected') data.rejected++;
     });
 
-    res.json(Array.from(stationMap.values()));
+    const stationData = Array.from(stationMap.values());
+    console.log('📊 [Backend] Station-wise aggregated data:', stationData);
+
+    res.json(stationData);
   } catch (error) {
-    console.error('Error fetching station data:', error);
-    res.status(500).json({ error: 'Failed to fetch station data' });
+    console.error('❌ [Backend] Error fetching station data:', error);
+    res.status(500).json({ error: 'Failed to fetch station data', details: error.message });
   }
 });
 
@@ -221,7 +242,6 @@ router.get('/assigned-services', async (req, res) => {
       FROM assigned_services
       WHERE assigned_date >= $1
         AND assigned_date <= $2
-        AND status = 'assigned'
     `;
     const params = [startOfToday, endOfToday];
     let paramIndex = 3;
@@ -229,15 +249,18 @@ router.get('/assigned-services', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
     const result = await queryPoliceMitra(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
   } catch (error) {
     console.error('Error fetching assigned services:', error);
-    res.status(500).json({ error: 'Failed to fetch assigned services' });
+    res.status(500).json({ error: 'Failed to fetch assigned services', details: error.message });
   }
 });
 
@@ -253,24 +276,26 @@ router.get('/feedbacks', async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
-    // Apply date filter
+    // Apply date filter - use submitted_at instead of created_at
     if (endDate) {
-      query += ` WHERE created_at <= $${paramIndex++}`;
+      query += ` WHERE submitted_at <= $${paramIndex++}`;
       params.push(endDate);
     }
 
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += `${paramIndex === 1 ? ' WHERE' : ' AND'} police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      if (stationList.length > 0) {
+        query += `${paramIndex === 1 ? ' WHERE' : ' AND'} police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
     const result = await queryPoliceMitra(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
   } catch (error) {
     console.error('Error fetching feedbacks:', error);
-    res.status(500).json({ error: 'Failed to fetch feedbacks' });
+    res.status(500).json({ error: 'Failed to fetch feedbacks', details: error.message });
   }
 });
 
@@ -318,8 +343,11 @@ router.get('/drilldown/registrations', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
     query += ` ORDER BY registration_date DESC`;
@@ -328,7 +356,7 @@ router.get('/drilldown/registrations', async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching drilldown data:', error);
-    res.status(500).json({ error: 'Failed to fetch drilldown data' });
+    res.status(500).json({ error: 'Failed to fetch drilldown data', details: error.message });
   }
 });
 
@@ -342,7 +370,7 @@ router.get('/drilldown/active-users', async (req, res) => {
         al.id,
         al.user_email,
         al.police_station,
-        al.start_time,
+        al.created_at as start_time,
         r.full_name,
         r.mobile_number
       FROM availability_logs al
@@ -355,17 +383,23 @@ router.get('/drilldown/active-users', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND al.police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND al.police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
-    query += ` ORDER BY al.start_time DESC`;
+    query += ` ORDER BY al.created_at DESC`;
+
+    console.log('🔍 [Backend] Drilldown active-users query:', query);
+    console.log('🔍 [Backend] Params:', params);
 
     const result = await queryPoliceMitra(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching active users details:', error);
-    res.status(500).json({ error: 'Failed to fetch active users details' });
+    console.error('❌ [Backend] Error fetching active users details:', error);
+    res.status(500).json({ error: 'Failed to fetch active users details', details: error.message });
   }
 });
 
@@ -382,15 +416,18 @@ router.get('/drilldown/assigned-services', async (req, res) => {
     let query = `
       SELECT
         id,
-        police_station,
-        service_type,
-        assigned_date,
+        user_id,
+        service_name,
+        participation_area,
         status,
-        volunteer_email
+        assigned_date,
+        user_email,
+        police_station,
+        location,
+        created_at
       FROM assigned_services
       WHERE assigned_date >= $1
         AND assigned_date <= $2
-        AND status = 'assigned'
     `;
     const params = [startOfToday, endOfToday];
     let paramIndex = 3;
@@ -398,17 +435,23 @@ router.get('/drilldown/assigned-services', async (req, res) => {
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
     query += ` ORDER BY assigned_date DESC`;
 
+    console.log('🔍 [Backend] Drilldown assigned-services query:', query);
+    console.log('🔍 [Backend] Params:', params);
+
     const result = await queryPoliceMitra(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching assigned services details:', error);
-    res.status(500).json({ error: 'Failed to fetch assigned services details' });
+    console.error('❌ [Backend] Error fetching assigned services details:', error);
+    res.status(500).json({ error: 'Failed to fetch assigned services details', details: error.message });
   }
 });
 
@@ -422,8 +465,11 @@ router.get('/drilldown/feedbacks', async (req, res) => {
         id,
         police_station,
         rating,
-        feedback,
-        created_at
+        comment,
+        submitted_at,
+        created_at,
+        reply,
+        replied_at
       FROM feedbacks
       WHERE 1=1
     `;
@@ -432,24 +478,30 @@ router.get('/drilldown/feedbacks', async (req, res) => {
 
     // Apply date filter
     if (endDate) {
-      query += ` AND created_at <= $${paramIndex++}`;
+      query += ` AND submitted_at <= $${paramIndex++}`;
       params.push(endDate);
     }
 
     // Apply station filter
     if (stations) {
       const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
+      // Only apply filter if stationList is not empty
+      if (stationList.length > 0) {
+        query += ` AND police_station = ANY($${paramIndex++})`;
+        params.push(stationList);
+      }
     }
 
-    query += ` ORDER BY created_at DESC`;
+    query += ` ORDER BY submitted_at DESC`;
+
+    console.log('🔍 [Backend] Drilldown feedbacks query:', query);
+    console.log('🔍 [Backend] Params:', params);
 
     const result = await queryPoliceMitra(query, params);
     res.json(result.rows);
   } catch (error) {
-    console.error('Error fetching feedbacks details:', error);
-    res.status(500).json({ error: 'Failed to fetch feedbacks details' });
+    console.error('❌ [Backend] Error fetching feedbacks details:', error);
+    res.status(500).json({ error: 'Failed to fetch feedbacks details', details: error.message });
   }
 });
 
