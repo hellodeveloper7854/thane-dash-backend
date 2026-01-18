@@ -25,6 +25,7 @@ const emergency112Routes = require('./routes-emergency112');
 const portalLinksRoutes = require('./routes-portallinks');
 const usersRoutes = require('./routes-users');
 const atntRoutes = require('./routes-atnt');
+const latestDatesRoutes = require('./routes-latest-dates');
 
 // Enable CORS for all origins
 app.use(cors());
@@ -408,6 +409,7 @@ app.use('/api/users', usersRoutes);
 
 // ATNT API Routes
 app.use('/api/atnt', atntRoutes);
+app.use('/api/latest-dates', latestDatesRoutes);
 // Add more routes later
 
 app.listen(PORT, () => {
