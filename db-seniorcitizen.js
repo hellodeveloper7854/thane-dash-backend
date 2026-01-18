@@ -2,11 +2,11 @@ const { Pool } = require('pg');
 
 // Senior Citizen PostgreSQL Connection
 const poolSeniorCitizen = new Pool({
-  host: process.env.SC_DB_HOST || '94.249.213.97',
-  port: process.env.SC_DB_PORT || 5432,
-  database: process.env.SC_DB_NAME || 'seniorcitizen',
-  user: process.env.SC_DB_USER || 'postgres',
-  password: process.env.SC_DB_PASSWORD || 'thane123',
+  host: process.env.SENIORCITIZEN_DB_HOST || '94.249.213.97',
+  port: process.env.SENIORCITIZEN_DB_PORT || 5432,
+  database: process.env.SENIORCITIZEN_DB_NAME || 'seniorcitizen',
+  user: process.env.SENIORCITIZEN_DB_USER || 'postgres',
+  password: process.env.SENIORCITIZEN_DB_PASSWORD || 'thane123',
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
   connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
