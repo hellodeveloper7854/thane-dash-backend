@@ -238,18 +238,22 @@ router.get('/pdf-by-conditions', async (req, res) => {
     }
 
     let query = 'SELECT pdf_url FROM fingerprint_pdfs WHERE card_key = $1';
-    const params = [card_key];
+    const params = [typeof card_key === 'string' ? card_key : card_key[0]];
     let paramIndex = 2;
 
     if (month) {
+      const monthValue = typeof month === 'string' ? month : month[0];
       query += ` AND month = $${paramIndex++}`;
-      params.push(month);
+      params.push(monthValue);
     }
 
     if (start_date && end_date) {
       // Parse dates to handle both ISO strings and YYYY-MM-DD format
-      const startDateObj = new Date(start_date as string);
-      const endDateObj = new Date(end_date as string);
+      const startDateValue = typeof start_date === 'string' ? start_date : start_date[0];
+      const endDateValue = typeof end_date === 'string' ? end_date : end_date[0];
+
+      const startDateObj = new Date(startDateValue);
+      const endDateObj = new Date(endDateValue);
 
       // Format to YYYY-MM-DD
       const startDateStr = startDateObj.toISOString().split('T')[0];
@@ -283,18 +287,22 @@ router.delete('/pdfs', async (req, res) => {
 
     // First get the PDF record(s) to find the file path(s)
     let query = 'SELECT pdf_url FROM fingerprint_pdfs WHERE card_key = $1';
-    const params = [card_key];
+    const params = [typeof card_key === 'string' ? card_key : card_key[0]];
     let paramIndex = 2;
 
     if (month) {
+      const monthValue = typeof month === 'string' ? month : month[0];
       query += ` AND month = $${paramIndex++}`;
-      params.push(month);
+      params.push(monthValue);
     }
 
     if (start_date && end_date) {
       // Parse dates to handle both ISO strings and YYYY-MM-DD format
-      const startDateObj = new Date(start_date as string);
-      const endDateObj = new Date(end_date as string);
+      const startDateValue = typeof start_date === 'string' ? start_date : start_date[0];
+      const endDateValue = typeof end_date === 'string' ? end_date : end_date[0];
+
+      const startDateObj = new Date(startDateValue);
+      const endDateObj = new Date(endDateValue);
 
       // Format to YYYY-MM-DD
       const startDateStr = startDateObj.toISOString().split('T')[0];
@@ -304,7 +312,8 @@ router.delete('/pdfs', async (req, res) => {
       params.push(startDateStr, endDateStr);
     } else if (date) {
       // Parse date to handle both ISO strings and YYYY-MM-DD format
-      const dateObj = new Date(date as string);
+      const dateValue = typeof date === 'string' ? date : date[0];
+      const dateObj = new Date(dateValue);
       const dateStr = dateObj.toISOString().split('T')[0];
 
       query += ` AND pdf_date = $${paramIndex++}`;
