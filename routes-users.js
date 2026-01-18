@@ -259,4 +259,167 @@ router.post('/verify', async (req, res) => {
   }
 });
 
+// Get all users with tracking data
+router.get('/tracking/all', async (req, res) => {
+  try {
+    const result = await queryUsers(
+      `SELECT user_id, username, role, is_online, last_seen, created_at
+       FROM users_management
+       WHERE isdeleted = false
+       ORDER BY created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching users tracking:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get login count for a user in date range
+router.get('/:userId/login-count', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    let query = 'SELECT COUNT(*) as count FROM user_login_logs WHERE user_id = $1 AND event_type = \'login\'';
+    const params = [userId];
+
+    if (startDate) {
+      query += ' AND created_at >= $2';
+      params.push(startDate);
+    }
+    if (endDate) {
+      query += ` AND created_at <= $${params.length + 1}`;
+      params.push(endDate);
+    }
+
+    const result = await queryUsers(query, params);
+    res.json({ count: parseInt(result.rows[0].count) || 0 });
+  } catch (error) {
+    console.error('Error fetching login count:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get last login for a user
+router.get('/:userId/last-login', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await queryUsers(
+      'SELECT created_at FROM user_login_logs WHERE user_id = $1 AND event_type = \'login\' ORDER BY created_at DESC LIMIT 1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ lastLogin: null });
+    }
+
+    res.json({ lastLogin: result.rows[0].created_at });
+  } catch (error) {
+    console.error('Error fetching last login:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all login logs for a user in date range
+router.get('/:userId/login-logs', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    let query = 'SELECT * FROM user_login_logs WHERE user_id = $1';
+    const params = [userId];
+
+    if (startDate) {
+      query += ' AND created_at >= $2';
+      params.push(startDate);
+    }
+    if (endDate) {
+      query += ` AND created_at <= $${params.length + 1}`;
+      params.push(endDate);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const result = await queryUsers(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching login logs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update user online status
+router.put('/:userId/online-status', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isOnline } = req.body;
+
+    const result = await queryUsers(
+      'UPDATE users_management SET is_online = $1, last_seen = NOW() WHERE user_id = $2 RETURNING *',
+      [isOnline, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating online status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Log user login event
+router.post('/login-log', async (req, res) => {
+  try {
+    const { user_id, username, event_type, ip_address, user_agent, session_id } = req.body;
+
+    const result = await queryUsers(
+      `INSERT INTO user_login_logs (user_id, username, event_type, ip_address, user_agent, session_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       RETURNING *`,
+      [user_id, username, event_type || 'login', ip_address || null, user_agent || null, session_id || null]
+    );
+
+    // Also update user's online status
+    await queryUsers(
+      'UPDATE users_management SET is_online = true, last_seen = NOW() WHERE user_id = $1',
+      [user_id]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error logging login event:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Log user logout event
+router.post('/logout-log', async (req, res) => {
+  try {
+    const { user_id, username, session_id } = req.body;
+
+    const result = await queryUsers(
+      `INSERT INTO user_login_logs (user_id, username, event_type, session_id, created_at)
+       VALUES ($1, $2, 'logout', $3, NOW())
+       RETURNING *`,
+      [user_id, username, session_id || null]
+    );
+
+    // Update user's online status
+    await queryUsers(
+      'UPDATE users_management SET is_online = false, last_seen = NOW() WHERE user_id = $1',
+      [user_id]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error logging logout event:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
