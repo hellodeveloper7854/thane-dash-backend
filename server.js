@@ -12,7 +12,7 @@ const app = express();
 
 const PORT = process.env.PORT || 4000;
 
-// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, EOffice, CCTNS, Fingerprint, Control Room, Emergency112, and PortalLinks
+// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, EOffice, CCTNS, Fingerprint, Control Room, Emergency112, PortalLinks, and Users Management
 const policeMitraRoutes = require('./routes-policemitra');
 const seniorCitizenRoutes = require('./routes-seniorcitizen');
 const atstRoutes = require('./routes-atst');
@@ -23,6 +23,7 @@ const fingerprintRoutes = require('./routes-fingerprint');
 const controlRoomRoutes = require('./routes-controlroom');
 const emergency112Routes = require('./routes-emergency112');
 const portalLinksRoutes = require('./routes-portallinks');
+const usersRoutes = require('./routes-users');
 
 // Enable CORS for all origins
 app.use(cors());
@@ -400,6 +401,9 @@ app.use('/api/emergency112', emergency112Routes);
 
 // Portal Links API Routes
 app.use('/api/portallinks', portalLinksRoutes);
+
+// Users Management API Routes
+app.use('/api/users', usersRoutes);
 // Add more routes later
 
 app.listen(PORT, () => {
