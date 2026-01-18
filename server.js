@@ -12,12 +12,13 @@ const app = express();
 
 const PORT = process.env.PORT || 4000;
 
-// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, and EOffice
+// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, EOffice, and CCTNS
 const policeMitraRoutes = require('./routes-policemitra');
 const seniorCitizenRoutes = require('./routes-seniorcitizen');
 const atstRoutes = require('./routes-atst');
 const igotlearningRoutes = require('./routes-igotlearning');
 const eofficeRoutes = require('./routes-eoffice');
+const cctnsRoutes = require('./routes-cctns');
 
 // Enable CORS for all origins
 app.use(cors());
@@ -379,6 +380,9 @@ app.use('/api/igotlearning', igotlearningRoutes);
 
 // EOffice API Routes
 app.use('/api/eoffice', eofficeRoutes);
+
+// CCTNS API Routes
+app.use('/api/cctns', cctnsRoutes);
 // Add more routes later
 
 app.listen(PORT, () => {
