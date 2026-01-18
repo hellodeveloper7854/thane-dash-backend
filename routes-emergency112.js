@@ -211,4 +211,125 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// ==================== emergency112_calls endpoints ====================
+
+// Initialize the emergency112_calls table if it doesn't exist
+const initializeCallsTable = async () => {
+  try {
+    const tableCheck = await queryEmergency112(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'emergency112_calls'
+      );
+    `);
+
+    if (!tableCheck.rows[0].exists) {
+      await queryEmergency112(`
+        CREATE TABLE emergency112_calls (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          date DATE NOT NULL,
+          event_id VARCHAR(255),
+          region VARCHAR(255),
+          zone VARCHAR(255),
+          police_station VARCHAR(255),
+          incident_type VARCHAR(255),
+          do_user_id VARCHAR(255),
+          total_response_time INTEGER,
+          start_time VARCHAR(50),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      await queryEmergency112(`
+        CREATE INDEX IF NOT EXISTS idx_emergency112_calls_date ON emergency112_calls(date)
+      `);
+
+      console.log('Emergency112: Calls table initialized successfully');
+    }
+  } catch (error) {
+    console.error('Emergency112: Error initializing calls table:', error);
+  }
+};
+
+// Initialize calls table
+initializeCallsTable();
+
+// Get call events by date
+router.get('/calls', async (req, res) => {
+  try {
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
+    }
+
+    const result = await queryEmergency112(
+      'SELECT * FROM emergency112_calls WHERE date = $1 ORDER BY created_at DESC',
+      [date]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Emergency112: Error fetching call events:', error);
+    res.status(500).json({ error: 'Failed to fetch call events', details: error.message });
+  }
+});
+
+// Create new call event
+router.post('/calls', async (req, res) => {
+  try {
+    const {
+      date,
+      event_id,
+      region,
+      zone,
+      police_station,
+      incident_type,
+      do_user_id,
+      total_response_time,
+      start_time
+    } = req.body;
+
+    if (!date || !police_station || !incident_type) {
+      return res.status(400).json({ error: 'date, police_station, and incident_type are required' });
+    }
+
+    const result = await queryEmergency112(
+      `INSERT INTO emergency112_calls (date, event_id, region, zone, police_station, incident_type, do_user_id, total_response_time, start_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING *`,
+      [date, event_id || null, region || null, zone || null, police_station, incident_type, do_user_id || null, total_response_time || null, start_time || null]
+    );
+
+    console.log('Emergency112: Call event created successfully');
+    res.status(201).json({ message: 'Call event created successfully', data: result.rows[0] });
+  } catch (error) {
+    console.error('Emergency112: Error creating call event:', error);
+    res.status(500).json({ error: 'Failed to create call event', details: error.message });
+  }
+});
+
+// Delete call event by ID
+router.delete('/calls/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await queryEmergency112(
+      'DELETE FROM emergency112_calls WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Call event not found' });
+    }
+
+    console.log('Emergency112: Call event deleted successfully');
+    res.json({ message: 'Call event deleted successfully' });
+  } catch (error) {
+    console.error('Emergency112: Error deleting call event:', error);
+    res.status(500).json({ error: 'Failed to delete call event', details: error.message });
+  }
+});
+
 module.exports = router;
