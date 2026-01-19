@@ -257,15 +257,15 @@ router.post('/upload-criminal-image', upload.single('image'), async (req, res) =
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { criminalName } = req.body;
-    if (!criminalName) {
-      return res.status(400).json({ error: 'Criminal name is required' });
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({ error: 'Date is required' });
     }
 
     // Generate unique filename
     const timestamp = Date.now();
     const ext = path.extname(req.file.originalname);
-    const filename = `${criminalName.replace(/\s+/g, '_')}_${timestamp}${ext}`;
+    const filename = `${date.replace(/-/g, '_')}_${timestamp}${ext}`;
 
     // Save file to Windows server
     const imageUrl = await saveToWindowsServer(req.file, filename, 'criminals');
@@ -276,9 +276,9 @@ router.post('/upload-criminal-image', upload.single('image'), async (req, res) =
 
     const result = await queryATNT(
       `INSERT INTO criminal_images (image_name, image_url, uploaded_by, upload_date)
-       VALUES ($1, $2, $3, CURRENT_DATE)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [criminalName, imageUrl, uploadedBy?.username || 'unknown']
+      [filename, imageUrl, uploadedBy?.username || 'unknown', date]
     );
 
     res.status(201).json({
