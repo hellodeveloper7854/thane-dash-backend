@@ -70,7 +70,7 @@ const saveToWindowsServer = async (file, filename) => {
       } else {
         console.log('File saved successfully:', uploadPath);
         // Return the public URL - using the same base as IGotELearning
-        const publicUrl = `http://94.249.213.97/thanedashboardassests/${filename}`;
+        const publicUrl = `https://cpthanearchive.thanepolice.in/${filename}`;
         resolve(publicUrl);
       }
     });

@@ -10,7 +10,7 @@ const fs = require('fs');
 const WINDOWS_SERVER_CONFIG = {
   // For Windows network share, use UNC path format with IP address
   // Using existing IIS folder: C:\inetpub\wwwroot\thanedashboardassests
-  // This folder is already accessible via: http://94.249.213.97/thanedashboardassests
+  // This folder is already accessible via: https://cpthanearchive.thanepolice.in
   //
   // IMPORTANT: You need to create a network share for the folder first!
   // See NETWORK_SHARE_SETUP_GUIDE.md for detailed instructions.
@@ -37,10 +37,10 @@ const WINDOWS_SERVER_CONFIG = {
   //
   // Configuration:
   // ✅ Using existing IIS folder: C:\inetpub\wwwroot\thanedashboardassests
-  // ✅ Already accessible via: http://94.249.213.97/thanedashboardassests
-  // ✅ Test PDF working: http://94.249.213.97/thaneddashboardassests/test.pdf
+  // ✅ Already accessible via: https://cpthanearchive.thanepolice.in
+  // ✅ Test PDF working: https://cpthanearchive.thanepolice.in/test.pdf
   // ✅ IIS already configured with proper MIME types
-  // ✅ Firewall already allows HTTP (port 80)
+  // ✅ Firewall already allows HTTPS (port 443)
   //
   // ⚠️ ACTION REQUIRED: Create network share on Windows server!
   // Run one of these scripts ON THE WINDOWS SERVER:
