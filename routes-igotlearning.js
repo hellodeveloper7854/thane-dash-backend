@@ -308,6 +308,32 @@ router.delete('/pdfs', async (req, res) => {
 // Initialize the police_training_data table if it doesn't exist
 const initializePoliceTrainingTable = async () => {
   try {
+    // Check if table exists and has the correct structure
+    const tableCheck = await queryIGotELearning(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'police_training_data'
+      );
+    `);
+
+    if (tableCheck.rows[0].exists) {
+      // Check if id column exists
+      const columnCheck = await queryIGotELearning(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_name = 'police_training_data'
+          AND column_name = 'id'
+        );
+      `);
+
+      if (!columnCheck.rows[0].exists) {
+        // Table exists but doesn't have id column - need to recreate
+        console.log('IGotELearning: Recreating police_training_data table with correct structure...');
+        await queryIGotELearning(`DROP TABLE IF EXISTS police_training_data CASCADE`);
+      }
+    }
+
     await queryIGotELearning(`
       CREATE TABLE IF NOT EXISTS police_training_data (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -318,6 +344,28 @@ const initializePoliceTrainingTable = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Ensure training_data column exists (for backwards compatibility)
+    try {
+      await queryIGotELearning(`
+        ALTER TABLE police_training_data
+        ADD COLUMN IF NOT EXISTS training_data JSONB
+      `);
+      console.log('IGotELearning: training_data column verified');
+    } catch (alterError) {
+      console.warn('IGotELearning: Could not add training_data column (may already exist):', alterError.message);
+    }
+
+    // Ensure uploaded_by column exists (for backwards compatibility)
+    try {
+      await queryIGotELearning(`
+        ALTER TABLE police_training_data
+        ADD COLUMN IF NOT EXISTS uploaded_by UUID
+      `);
+      console.log('IGotELearning: uploaded_by column verified');
+    } catch (alterError) {
+      console.warn('IGotELearning: Could not add uploaded_by column (may already exist):', alterError.message);
+    }
 
     // Create index on month_year for faster queries
     await queryIGotELearning(`
@@ -368,8 +416,12 @@ router.get('/police-training', async (req, res) => {
       [month_year]
     );
 
+    // Return data with empty array if no records found (not an error)
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'No data found for the specified month_year' });
+      return res.json({
+        month_year: month_year,
+        training_data: []
+      });
     }
 
     res.json(result.rows[0]);
