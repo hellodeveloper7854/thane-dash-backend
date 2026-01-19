@@ -124,6 +124,45 @@ const initializeDataTables = async () => {
       )
     `);
 
+    // Add todays_mapped_data column if it doesn't exist
+    try {
+      await queryATNT(`
+        ALTER TABLE atnt_daily_summary
+        ADD COLUMN IF NOT EXISTS todays_mapped_data INTEGER DEFAULT 0
+      `);
+      console.log('ATNT: todays_mapped_data column added/verified');
+    } catch (alterError) {
+      console.warn('ATNT: Could not add todays_mapped_data column (may already exist):', alterError.message);
+    }
+
+    // Change created_by column type from UUID to VARCHAR if it's UUID
+    try {
+      // First, check if created_by column exists and its type
+      const columnCheck = await queryATNT(`
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'atnt_daily_summary'
+        AND column_name = 'created_by'
+      `);
+
+      if (columnCheck.rows.length > 0) {
+        const dataType = columnCheck.rows[0].data_type;
+        console.log('ATNT: created_by column type:', dataType);
+
+        // If it's uuid, we need to change it to varchar
+        if (dataType === 'uuid') {
+          console.log('ATNT: Changing created_by from UUID to VARCHAR...');
+          await queryATNT(`
+            ALTER TABLE atnt_daily_summary
+            ALTER COLUMN created_by TYPE VARCHAR(255) USING 'admin'
+          `);
+          console.log('ATNT: created_by column changed to VARCHAR(255)');
+        }
+      }
+    } catch (alterError) {
+      console.warn('ATNT: Could not change created_by column type:', alterError.message);
+    }
+
     await queryATNT(`
       CREATE TABLE IF NOT EXISTS atnt_offense_summary (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -134,6 +173,32 @@ const initializeDataTables = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Change created_by column type from UUID to VARCHAR if it's UUID for offense_summary table
+    try {
+      const columnCheckOffense = await queryATNT(`
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'atnt_offense_summary'
+        AND column_name = 'created_by'
+      `);
+
+      if (columnCheckOffense.rows.length > 0) {
+        const dataType = columnCheckOffense.rows[0].data_type;
+        console.log('ATNT: offense_summary created_by column type:', dataType);
+
+        if (dataType === 'uuid') {
+          console.log('ATNT: Changing offense_summary created_by from UUID to VARCHAR...');
+          await queryATNT(`
+            ALTER TABLE atnt_offense_summary
+            ALTER COLUMN created_by TYPE VARCHAR(255) USING 'admin'
+          `);
+          console.log('ATNT: offense_summary created_by column changed to VARCHAR(255)');
+        }
+      }
+    } catch (alterError) {
+      console.warn('ATNT: Could not change offense_summary created_by column type:', alterError.message);
+    }
 
     console.log('ATNT: Data tables initialized successfully');
   } catch (error) {
@@ -285,18 +350,27 @@ router.get('/daily-summary/:date', async (req, res) => {
   try {
     const { date } = req.params;
 
+    console.log('ATNT API: Fetching daily summary for date:', date);
+    console.log('ATNT API: Date type:', typeof date);
+
     const result = await queryATNT(
-      'SELECT * FROM atnt_daily_summary WHERE date = $1',
+      'SELECT id, date::text as date, station_data, created_by, created_at, updated_at, todays_mapped_data FROM atnt_daily_summary WHERE date = $1',
       [date]
     );
 
+    console.log('ATNT API: Query result rows:', result.rows.length);
+    if (result.rows.length > 0) {
+      console.log('ATNT API: Found data for date:', result.rows[0].date);
+    }
+
     if (result.rows.length === 0) {
+      console.log('ATNT API: No data found for date:', date);
       return res.json({ data: null });
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Error fetching daily summary:', error);
+    console.error('ATNT API: Error fetching daily summary:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -306,19 +380,45 @@ router.post('/daily-summary', async (req, res) => {
   try {
     const { date, station_data, created_by } = req.body;
 
-    const result = await queryATNT(
-      `INSERT INTO atnt_daily_summary (date, station_data, created_by)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (date) DO UPDATE SET
-         station_data = EXCLUDED.station_data,
-         updated_at = NOW()
-       RETURNING *`,
-      [date, JSON.stringify(station_data), created_by]
-    );
+    console.log('ATNT API: Upserting daily summary for date:', date);
+    console.log('ATNT API: Date type:', typeof date);
+    console.log('ATNT API: Station data length:', station_data?.length);
+    console.log('ATNT API: Created by:', created_by);
+
+    let result;
+    try {
+      result = await queryATNT(
+        `INSERT INTO atnt_daily_summary (date, station_data, created_by)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (date) DO UPDATE SET
+           station_data = EXCLUDED.station_data,
+           updated_at = NOW()
+         RETURNING *`,
+        [date, JSON.stringify(station_data), created_by]
+      );
+    } catch (insertError) {
+      // If UUID error, try without created_by
+      if (insertError.message && insertError.message.includes('uuid')) {
+        console.warn('ATNT API: UUID error, retrying without created_by');
+        result = await queryATNT(
+          `INSERT INTO atnt_daily_summary (date, station_data)
+           VALUES ($1, $2)
+           ON CONFLICT (date) DO UPDATE SET
+             station_data = EXCLUDED.station_data,
+             updated_at = NOW()
+           RETURNING *`,
+          [date, JSON.stringify(station_data)]
+        );
+      } else {
+        throw insertError;
+      }
+    }
+
+    console.log('ATNT API: Upsert successful, stored date:', result.rows[0].date);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error upserting daily summary:', error);
+    console.error('ATNT API: Error upserting daily summary:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -346,7 +446,7 @@ router.get('/offense-summary/:date', async (req, res) => {
     const { date } = req.params;
 
     const result = await queryATNT(
-      'SELECT * FROM atnt_offense_summary WHERE date = $1',
+      'SELECT id, date::text as date, offense_data, created_by, created_at, updated_at FROM atnt_offense_summary WHERE date = $1',
       [date]
     );
 
@@ -366,19 +466,44 @@ router.post('/offense-summary', async (req, res) => {
   try {
     const { date, offense_data, created_by } = req.body;
 
-    const result = await queryATNT(
-      `INSERT INTO atnt_offense_summary (date, offense_data, created_by)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (date) DO UPDATE SET
-         offense_data = EXCLUDED.offense_data,
-         updated_at = NOW()
-       RETURNING *`,
-      [date, JSON.stringify(offense_data), created_by]
-    );
+    console.log('ATNT API: Upserting offense summary for date:', date);
+    console.log('ATNT API: Offense data length:', offense_data?.length);
+    console.log('ATNT API: Created by:', created_by);
+
+    let result;
+    try {
+      result = await queryATNT(
+        `INSERT INTO atnt_offense_summary (date, offense_data, created_by)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (date) DO UPDATE SET
+           offense_data = EXCLUDED.offense_data,
+           updated_at = NOW()
+         RETURNING *`,
+        [date, JSON.stringify(offense_data), created_by]
+      );
+    } catch (insertError) {
+      // If UUID error, try without created_by
+      if (insertError.message && insertError.message.includes('uuid')) {
+        console.warn('ATNT API: UUID error, retrying offense without created_by');
+        result = await queryATNT(
+          `INSERT INTO atnt_offense_summary (date, offense_data)
+           VALUES ($1, $2)
+           ON CONFLICT (date) DO UPDATE SET
+             offense_data = EXCLUDED.offense_data,
+             updated_at = NOW()
+           RETURNING *`,
+          [date, JSON.stringify(offense_data)]
+        );
+      } else {
+        throw insertError;
+      }
+    }
+
+    console.log('ATNT API: Offense upsert successful');
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error upserting offense summary:', error);
+    console.error('ATNT API: Error upserting offense summary:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -406,7 +531,7 @@ router.get('/daily-summary/range/:startDate/:endDate', async (req, res) => {
     const { startDate, endDate } = req.params;
 
     const result = await queryATNT(
-      `SELECT date, station_data FROM atnt_daily_summary
+      `SELECT date::text as date, station_data FROM atnt_daily_summary
        WHERE date >= $1 AND date <= $2
        ORDER BY date`,
       [startDate, endDate]

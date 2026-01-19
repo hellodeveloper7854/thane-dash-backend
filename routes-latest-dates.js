@@ -20,18 +20,18 @@ router.get('/atnt', async (req, res) => {
   try {
     // Get latest date from both ATNT tables
     const dailyResult = await queryATNT(
-      'SELECT date FROM atnt_daily_summary ORDER BY date DESC LIMIT 1'
+      'SELECT date::text as date FROM atnt_daily_summary ORDER BY date DESC LIMIT 1'
     );
     const offenseResult = await queryATNT(
-      'SELECT date FROM atnt_offense_summary ORDER BY date DESC LIMIT 1'
+      'SELECT date::text as date FROM atnt_offense_summary ORDER BY date DESC LIMIT 1'
     );
 
     const dates = [];
-    if (dailyResult.rows[0]?.date) dates.push(dailyResult.rows[0].date);
-    if (offenseResult.rows[0]?.date) dates.push(offenseResult.rows[0].date);
+    if (dailyResult.rows[0]?.date) dates.push(new Date(dailyResult.rows[0].date));
+    if (offenseResult.rows[0]?.date) dates.push(new Date(offenseResult.rows[0].date));
 
     // Return the latest date
-    dates.sort();
+    dates.sort((a, b) => a - b);
     const latestDate = dates.length > 0 ? dates[dates.length - 1] : null;
 
     res.json({ date: latestDate });
