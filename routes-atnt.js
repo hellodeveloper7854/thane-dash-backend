@@ -82,26 +82,63 @@ const saveToWindowsServer = async (file, filename, subfolder = 'criminals') => {
 // Initialize the criminal_images table if it doesn't exist
 const initializeTable = async () => {
   try {
-    // Create index on image_name for faster searches
-    // Use a separate query execution with error handling
-    try {
-      // First, check if table exists
-      const checkResult = await queryATNT(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables
-          WHERE table_schema = 'public'
-          AND table_name = 'criminal_images'
-        );
+    // Check if table exists
+    const checkResult = await queryATNT(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'criminal_images'
+      );
+    `);
+
+    if (!checkResult.rows[0].exists) {
+      // Table doesn't exist, create it
+      await queryATNT(`
+        CREATE TABLE criminal_images (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          image_name VARCHAR(255) NOT NULL,
+          image_url TEXT NOT NULL,
+          uploaded_by VARCHAR(255),
+          upload_date DATE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      console.log('ATNT: Criminal images table created successfully');
+    } else {
+      console.log('ATNT: Criminal images table already exists');
+
+      // Check if uploaded_by column exists and its type
+      const columnCheck = await queryATNT(`
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'criminal_images'
+        AND column_name = 'uploaded_by'
       `);
 
-      if (checkResult.rows[0].exists) {
-        await queryATNT(`
-          CREATE INDEX IF NOT EXISTS idx_criminal_images_name ON criminal_images(image_name)
-        `);
-        console.log('ATNT: Index on image_name created successfully');
+      if (columnCheck.rows.length > 0) {
+        const dataType = columnCheck.rows[0].data_type;
+        console.log('ATNT: uploaded_by column type:', dataType);
+
+        // If it's uuid, we need to change it to varchar
+        if (dataType === 'uuid') {
+          console.log('ATNT: Changing uploaded_by from UUID to VARCHAR...');
+          await queryATNT(`
+            ALTER TABLE criminal_images
+            ALTER COLUMN uploaded_by TYPE VARCHAR(255) USING 'unknown'
+          `);
+          console.log('ATNT: uploaded_by column changed to VARCHAR(255)');
+        }
       }
+    }
+
+    // Create index on image_name for faster searches
+    try {
+      await queryATNT(`
+        CREATE INDEX IF NOT EXISTS idx_criminal_images_name ON criminal_images(image_name)
+      `);
+      console.log('ATNT: Index on image_name created successfully');
     } catch (indexError) {
-      console.warn('ATNT: Could not create index on image_name (may already exist or timing issue):', indexError.message);
+      console.warn('ATNT: Could not create index on image_name:', indexError.message);
     }
 
     console.log('ATNT: Criminal images table initialization completed');
