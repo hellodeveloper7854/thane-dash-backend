@@ -610,7 +610,12 @@ router.get('/drilldown/sos', async (req, res) => {
         user_name,
         status,
         resolved_at,
-        location_address
+        location_address,
+        latitude,
+        longitude,
+        emergency_contacts,
+        resolved_by,
+        notes
       FROM sos_alerts
       WHERE 1=1
     `;
@@ -637,6 +642,12 @@ router.get('/drilldown/sos', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     console.log('SOS Result rows:', result.rows.length);
+
+    // Log first row for debugging
+    if (result.rows.length > 0) {
+      console.log('Sample SOS data:', JSON.stringify(result.rows[0], null, 2));
+    }
+
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching SOS drilldown data:', error);
