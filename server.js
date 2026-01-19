@@ -12,7 +12,7 @@ const app = express();
 
 const PORT = process.env.PORT || 4000;
 
-// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, EOffice, CCTNS, Fingerprint, Control Room, Emergency112, PortalLinks, Users Management, and ATNT
+// PostgreSQL connections for Police Mitra, Senior Citizen, ATST, IGotELearning, EOffice, CCTNS, Fingerprint, Control Room, Emergency112, PortalLinks, Users Management, ATNT, Police Welfare, and Siddhi Hall
 const policeMitraRoutes = require('./routes-policemitra');
 const seniorCitizenRoutes = require('./routes-seniorcitizen');
 const atstRoutes = require('./routes-atst');
@@ -26,6 +26,8 @@ const portalLinksRoutes = require('./routes-portallinks');
 const usersRoutes = require('./routes-users');
 const atntRoutes = require('./routes-atnt');
 const latestDatesRoutes = require('./routes-latest-dates');
+const policeWelfareRoutes = require('./routes-policewelfare');
+const siddhiHallRoutes = require('./routes-siddhihall');
 
 // Enable CORS for all origins
 app.use(cors());
@@ -410,6 +412,13 @@ app.use('/api/users', usersRoutes);
 // ATNT API Routes
 app.use('/api/atnt', atntRoutes);
 app.use('/api/latest-dates', latestDatesRoutes);
+
+// Police Welfare API Routes
+app.use('/api/policewelfare', policeWelfareRoutes);
+
+// Siddhi Hall API Routes
+app.use('/api/siddhihall', siddhiHallRoutes);
+
 // Add more routes later
 
 app.listen(PORT, () => {
