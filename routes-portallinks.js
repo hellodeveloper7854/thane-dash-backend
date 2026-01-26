@@ -71,7 +71,7 @@ router.get('/links/:id', async (req, res) => {
 // Create a new portal link
 router.post('/links', async (req, res) => {
   try {
-    const { sr_no, service, department_agency, website, email, description } = req.body;
+    const { sr_no, service, department_agency, hierarchy_level, website, email, description } = req.body;
 
     if (!sr_no || !service || !department_agency || !website || !description) {
       return res.status(400).json({
@@ -80,10 +80,10 @@ router.post('/links', async (req, res) => {
     }
 
     const result = await queryPortalLinks(
-      `INSERT INTO useful_portal_links (sr_no, service, department_agency, website, email, description, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+      `INSERT INTO useful_portal_links (sr_no, service, department_agency, hierarchy_level, website, email, description, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
        RETURNING *`,
-      [sr_no, service, department_agency, website, email || null, description]
+      [sr_no, service, department_agency, hierarchy_level || null, website, email || null, description]
     );
 
     console.log('PortalLinks: Link created successfully with sr_no:', sr_no);
@@ -104,7 +104,7 @@ router.post('/links', async (req, res) => {
 router.put('/links/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { sr_no, service, department_agency, website, email, description } = req.body;
+    const { sr_no, service, department_agency, hierarchy_level, website, email, description } = req.body;
 
     if (!sr_no || !service || !department_agency || !website || !description) {
       return res.status(400).json({
@@ -114,10 +114,10 @@ router.put('/links/:id', async (req, res) => {
 
     const result = await queryPortalLinks(
       `UPDATE useful_portal_links
-       SET sr_no = $1, service = $2, department_agency = $3, website = $4, email = $5, description = $6, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
+       SET sr_no = $1, service = $2, department_agency = $3, hierarchy_level = $4, website = $5, email = $6, description = $7, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $8
        RETURNING *`,
-      [sr_no, service, department_agency, website, email || null, description, id]
+      [sr_no, service, department_agency, hierarchy_level || null, website, email || null, description, id]
     );
 
     if (result.rows.length === 0) {
@@ -173,7 +173,7 @@ router.post('/bulk-insert', async (req, res) => {
     const errors = [];
 
     for (const link of links) {
-      const { sr_no, service, department_agency, website, email, description } = link;
+      const { sr_no, service, department_agency, hierarchy_level, website, email, description } = link;
 
       if (!sr_no || !service || !department_agency || !website || !description) {
         errors.push({ link, error: 'Missing required fields' });
@@ -182,12 +182,12 @@ router.post('/bulk-insert', async (req, res) => {
 
       try {
         const result = await queryPortalLinks(
-          `INSERT INTO useful_portal_links (sr_no, service, department_agency, website, email, description, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+          `INSERT INTO useful_portal_links (sr_no, service, department_agency, hierarchy_level, website, email, description, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
            ON CONFLICT (sr_no)
-           DO UPDATE SET service = $2, department_agency = $3, website = $4, email = $5, description = $6, updated_at = CURRENT_TIMESTAMP
+           DO UPDATE SET service = $2, department_agency = $3, hierarchy_level = $4, website = $5, email = $6, description = $7, updated_at = CURRENT_TIMESTAMP
            RETURNING *`,
-          [sr_no, service, department_agency, website, email || null, description]
+          [sr_no, service, department_agency, hierarchy_level || null, website, email || null, description]
         );
 
         results.push(result.rows[0]);
