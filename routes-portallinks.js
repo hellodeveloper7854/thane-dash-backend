@@ -11,12 +11,27 @@ const initializeTable = async () => {
         sr_no INTEGER NOT NULL UNIQUE,
         service VARCHAR(255) NOT NULL,
         department_agency VARCHAR(255) NOT NULL,
+        hierarchy_level VARCHAR(255),
         website TEXT NOT NULL,
         email VARCHAR(255),
         description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add hierarchy_level column if it doesn't exist (for existing tables)
+    await queryPortalLinks(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'useful_portal_links'
+          AND column_name = 'hierarchy_level'
+        ) THEN
+          ALTER TABLE useful_portal_links ADD COLUMN hierarchy_level VARCHAR(255);
+        END IF;
+      END $$;
     `);
 
     // Create index on sr_no for faster queries and ordering
@@ -181,16 +196,32 @@ router.post('/bulk-insert', async (req, res) => {
       }
 
       try {
-        const result = await queryPortalLinks(
-          `INSERT INTO useful_portal_links (sr_no, service, department_agency, hierarchy_level, website, email, description, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
-           ON CONFLICT (sr_no)
-           DO UPDATE SET service = $2, department_agency = $3, hierarchy_level = $4, website = $5, email = $6, description = $7, updated_at = CURRENT_TIMESTAMP
-           RETURNING *`,
-          [sr_no, service, department_agency, hierarchy_level || null, website, email || null, description]
+        // First, check if a link with this sr_no already exists
+        const existingLink = await queryPortalLinks(
+          'SELECT * FROM useful_portal_links WHERE sr_no = $1',
+          [sr_no]
         );
 
-        results.push(result.rows[0]);
+        if (existingLink.rows.length > 0) {
+          // Update existing link
+          const result = await queryPortalLinks(
+            `UPDATE useful_portal_links
+             SET service = $1, department_agency = $2, hierarchy_level = $3, website = $4, email = $5, description = $6, updated_at = CURRENT_TIMESTAMP
+             WHERE sr_no = $7
+             RETURNING *`,
+            [service, department_agency, hierarchy_level || null, website, email || null, description, sr_no]
+          );
+          results.push(result.rows[0]);
+        } else {
+          // Insert new link
+          const result = await queryPortalLinks(
+            `INSERT INTO useful_portal_links (sr_no, service, department_agency, hierarchy_level, website, email, description, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+             RETURNING *`,
+            [sr_no, service, department_agency, hierarchy_level || null, website, email || null, description]
+          );
+          results.push(result.rows[0]);
+        }
       } catch (error) {
         errors.push({ link, error: error.message });
       }
