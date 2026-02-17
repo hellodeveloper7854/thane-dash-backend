@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryIGotELearning } = require('./db-igotlearning');
+const { asyncHandler } = require('./errorHandler');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -79,7 +80,6 @@ const saveToWindowsServer = async (file, filename) => {
 
     // Ensure directory exists
     const dir = path.dirname(uploadPath);
-    try {
       if (!fs.existsSync(dir)) {
         console.log('Creating directory:', dir);
         fs.mkdirSync(dir, { recursive: true });
@@ -112,7 +112,6 @@ const saveToWindowsServer = async (file, filename) => {
 const { SmbShare } = require('smb-share');
 
 const saveToWindowsServerWithAuth = async (file, filename) => {
-  try {
     const share = new SmbShare({
       serverName: 'your-server-name',
       shareName: 'igotlearning',
@@ -125,65 +124,13 @@ const saveToWindowsServerWithAuth = async (file, filename) => {
     await share.putFile(uploadPath, file.buffer);
 
     return `${WINDOWS_SERVER_CONFIG.publicUrlBase}/${filename}`;
-  } catch (error) {
-    console.error('Error with SMB upload:', error);
-    throw error;
-  }
-};
-*/
-
-// Initialize the i_got_e_learning_pdfs table if it doesn't exist
-const initializeTable = async () => {
-  try {
-    await queryIGotELearning(`
-      CREATE TABLE IF NOT EXISTS i_got_e_learning_pdfs (
-        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-        card_key VARCHAR(50) NOT NULL,
-        pdf_url TEXT,
-        pdf_date DATE NOT NULL,
-        uploaded_by UUID,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(card_key, pdf_date)
-      )
-    `);
-
-    // Create index on pdf_date for faster queries
-    await queryIGotELearning(`
-      CREATE INDEX IF NOT EXISTS idx_i_got_e_learning_pdfs_date ON i_got_e_learning_pdfs(pdf_date)
-    `);
-
-    console.log('IGotELearning: Table initialized successfully');
-  } catch (error) {
-    console.error('IGotELearning: Error initializing table:', error);
-  }
-};
-
-// Initialize table on module load
-initializeTable();
-
-// Serve files from local fallback storage
-router.get('/files/:filename', (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const filePath = path.join(WINDOWS_SERVER_CONFIG.localFallbackPath, filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'File not found' });
-    }
     
     // Send file
     res.sendFile(filePath);
-  } catch (error) {
-    console.error('Error serving file:', error);
-    res.status(500).json({ error: 'Failed to serve file', details: error.message });
-  }
-});
+  ));;
 
 // Upload PDF and save metadata
-router.post('/upload-pdf', upload.single('file'), async (req, res) => {
-  try {
+router.post('/upload-pdf', upload.single('file'), asyncHandler(async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -223,15 +170,10 @@ router.post('/upload-pdf', upload.single('file'), async (req, res) => {
 
     console.log('IGotELearning: PDF uploaded to Windows server and metadata saved for card:', card_key, 'date:', pdf_date);
     res.json({ message: 'PDF uploaded successfully', pdf_url: pdf_url, data: result.rows[0] });
-  } catch (error) {
-    console.error('IGotELearning: Error uploading PDF:', error);
-    res.status(500).json({ error: 'Failed to upload PDF', details: error.message });
-  }
-});
+  ));;
 
 // Get PDF data by date
-router.get('/pdfs', async (req, res) => {
-  try {
+router.get('/pdfs', asyncHandler(async (req, res) => {
     const { date } = req.query;
 
     if (!date) {
@@ -244,15 +186,10 @@ router.get('/pdfs', async (req, res) => {
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('IGotELearning: Error fetching PDF data:', error);
-    res.status(500).json({ error: 'Failed to fetch PDF data', details: error.message });
-  }
-});
+  ));;
 
 // Upsert PDF data (insert or update)
-router.post('/pdfs', async (req, res) => {
-  try {
+router.post('/pdfs', asyncHandler(async (req, res) => {
     const { card_key, pdf_url, pdf_date, uploaded_by } = req.body;
 
     if (!card_key || !pdf_url || !pdf_date) {
@@ -273,15 +210,10 @@ router.post('/pdfs', async (req, res) => {
 
     console.log('IGotELearning: PDF data upserted successfully for card:', card_key, 'date:', pdf_date);
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('IGotELearning: Error upserting PDF data:', error);
-    res.status(500).json({ error: 'Failed to upsert PDF data', details: error.message });
-  }
-});
+  ));;
 
 // Delete PDF data
-router.delete('/pdfs', async (req, res) => {
-  try {
+router.delete('/pdfs', asyncHandler(async (req, res) => {
     const { card_key, pdf_date } = req.query;
 
     if (!card_key || !pdf_date) {
@@ -299,15 +231,10 @@ router.delete('/pdfs', async (req, res) => {
 
     console.log('IGotELearning: PDF data deleted successfully for card:', card_key, 'date:', pdf_date);
     res.json({ message: 'PDF data deleted successfully', deleted_record: result.rows[0] });
-  } catch (error) {
-    console.error('IGotELearning: Error deleting PDF data:', error);
-    res.status(500).json({ error: 'Failed to delete PDF data', details: error.message });
-  }
-});
+  ));;
 
 // Initialize the police_training_data table if it doesn't exist
 const initializePoliceTrainingTable = async () => {
-  try {
     // Check if table exists and has the correct structure
     const tableCheck = await queryIGotELearning(`
       SELECT EXISTS (
@@ -346,7 +273,6 @@ const initializePoliceTrainingTable = async () => {
     `);
 
     // Ensure training_data column exists (for backwards compatibility)
-    try {
       await queryIGotELearning(`
         ALTER TABLE police_training_data
         ADD COLUMN IF NOT EXISTS training_data JSONB
@@ -357,7 +283,6 @@ const initializePoliceTrainingTable = async () => {
     }
 
     // Ensure uploaded_by column exists (for backwards compatibility)
-    try {
       await queryIGotELearning(`
         ALTER TABLE police_training_data
         ADD COLUMN IF NOT EXISTS uploaded_by UUID
@@ -373,22 +298,6 @@ const initializePoliceTrainingTable = async () => {
     `);
 
     console.log('IGotELearning: Police Training table initialized successfully');
-  } catch (error) {
-    console.error('IGotELearning: Error initializing police training table:', error);
-  }
-};
-
-// Initialize police training table on module load
-initializePoliceTrainingTable();
-
-// Check if police training data exists for a month
-router.get('/police-training/check', async (req, res) => {
-  try {
-    const { month_year } = req.query;
-
-    if (!month_year) {
-      return res.status(400).json({ error: 'month_year parameter is required (format: YYYY-MM)' });
-    }
 
     const result = await queryIGotELearning(
       'SELECT id FROM police_training_data WHERE month_year = $1 LIMIT 1',
@@ -396,15 +305,10 @@ router.get('/police-training/check', async (req, res) => {
     );
 
     res.json({ exists: result.rows.length > 0 });
-  } catch (error) {
-    console.error('IGotELearning: Error checking police training data:', error);
-    res.status(500).json({ error: 'Failed to check police training data', details: error.message });
-  }
-});
+  ));;
 
 // Get police training data by month_year
-router.get('/police-training', async (req, res) => {
-  try {
+router.get('/police-training', asyncHandler(async (req, res) => {
     const { month_year } = req.query;
 
     if (!month_year) {
@@ -425,15 +329,10 @@ router.get('/police-training', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('IGotELearning: Error fetching police training data:', error);
-    res.status(500).json({ error: 'Failed to fetch police training data', details: error.message });
-  }
-});
+  ));;
 
 // Upsert police training data
-router.post('/police-training', async (req, res) => {
-  try {
+router.post('/police-training', asyncHandler(async (req, res) => {
     const { month_year, training_data, uploaded_by } = req.body;
 
     if (!month_year || !training_data) {
@@ -454,15 +353,10 @@ router.post('/police-training', async (req, res) => {
 
     console.log('IGotELearning: Police training data upserted successfully for month_year:', month_year);
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('IGotELearning: Error upserting police training data:', error);
-    res.status(500).json({ error: 'Failed to upsert police training data', details: error.message });
-  }
-});
+  ));;
 
 // Delete police training data
-router.delete('/police-training', async (req, res) => {
-  try {
+router.delete('/police-training', asyncHandler(async (req, res) => {
     const { month_year } = req.query;
 
     if (!month_year) {
@@ -480,10 +374,6 @@ router.delete('/police-training', async (req, res) => {
 
     console.log('IGotELearning: Police training data deleted successfully for month_year:', month_year);
     res.json({ message: 'Police training data deleted successfully', deleted_record: result.rows[0] });
-  } catch (error) {
-    console.error('IGotELearning: Error deleting police training data:', error);
-    res.status(500).json({ error: 'Failed to delete police training data', details: error.message });
-  }
-});
+  ));;
 
 module.exports = router;

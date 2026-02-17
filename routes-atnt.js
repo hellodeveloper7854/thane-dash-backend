@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryATNT } = require('./db-atnt');
+const { asyncHandler } = require('./errorHandler');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -251,49 +252,43 @@ initializeDataTables();
 router.use('/files', express.static(WINDOWS_SERVER_CONFIG.uploadPath));
 
 // Upload criminal image
-router.post('/upload-criminal-image', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const { date } = req.body;
-    if (!date) {
-      return res.status(400).json({ error: 'Date is required' });
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const ext = path.extname(req.file.originalname);
-    const filename = `${date.replace(/-/g, '_')}_${timestamp}${ext}`;
-
-    // Save file to Windows server
-    const imageUrl = await saveToWindowsServer(req.file, filename, 'criminals');
-
-    // Save to database
-    const userStr = req.headers['x-user'] || 'unknown';
-    const uploadedBy = typeof userStr === 'string' ? JSON.parse(decodeURIComponent(userStr)) : null;
-
-    const result = await queryATNT(
-      `INSERT INTO criminal_images (image_name, image_url, uploaded_by, upload_date)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [filename, imageUrl, uploadedBy?.username || 'unknown', date]
-    );
-
-    res.status(201).json({
-      message: 'Image uploaded successfully',
-      image: result.rows[0]
-    });
-  } catch (error) {
-    console.error('Error uploading criminal image:', error);
-    res.status(500).json({ error: error.message });
+router.post('/upload-criminal-image', upload.single('image'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
   }
-});
+
+  const { date } = req.body;
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required' });
+  }
+
+  // Generate unique filename
+  const timestamp = Date.now();
+  const ext = path.extname(req.file.originalname);
+  const filename = `${date.replace(/-/g, '_')}_${timestamp}${ext}`;
+
+  // Save file to Windows server
+  const imageUrl = await saveToWindowsServer(req.file, filename, 'criminals');
+
+  // Save to database
+  const userStr = req.headers['x-user'] || 'unknown';
+  const uploadedBy = typeof userStr === 'string' ? JSON.parse(decodeURIComponent(userStr)) : null;
+
+  const result = await queryATNT(
+    `INSERT INTO criminal_images (image_name, image_url, uploaded_by, upload_date)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [filename, imageUrl, uploadedBy?.username || 'unknown', date]
+  );
+
+  res.status(201).json({
+    message: 'Image uploaded successfully',
+    image: result.rows[0]
+  });
+}));
 
 // Get all criminal images
-router.get('/criminal-images', async (req, res) => {
-  try {
+router.get('/criminal-images', asyncHandler(async (req, res) => {
     const { date } = req.query;
     
     console.log('ATNT API: Fetching criminal images with query params:', { date });
@@ -315,15 +310,10 @@ router.get('/criminal-images', async (req, res) => {
     
     console.log('ATNT API: Found', result.rows.length, 'criminal images');
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching criminal images:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Get criminal image by ID
-router.get('/criminal-images/:id', async (req, res) => {
-  try {
+router.get('/criminal-images/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
     const result = await queryATNT(
       'SELECT * FROM criminal_images WHERE id = $1',
@@ -335,15 +325,10 @@ router.get('/criminal-images/:id', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching criminal image:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Delete criminal image
-router.delete('/criminal-images/:id', async (req, res) => {
-  try {
+router.delete('/criminal-images/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Get image details first
@@ -376,15 +361,10 @@ router.delete('/criminal-images/:id', async (req, res) => {
     }
 
     res.json({ message: 'Image deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting criminal image:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Get daily summary for a specific date
-router.get('/daily-summary/:date', async (req, res) => {
-  try {
+router.get('/daily-summary/:date', asyncHandler(async (req, res) => {
     const { date } = req.params;
 
     console.log('ATNT API: Fetching daily summary for date:', date);
@@ -406,15 +386,10 @@ router.get('/daily-summary/:date', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('ATNT API: Error fetching daily summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Upsert daily summary
-router.post('/daily-summary', async (req, res) => {
-  try {
+router.post('/daily-summary', asyncHandler(async (req, res) => {
     const { date, station_data, created_by } = req.body;
 
     console.log('ATNT API: Upserting daily summary for date:', date);
@@ -454,15 +429,10 @@ router.post('/daily-summary', async (req, res) => {
     console.log('ATNT API: Upsert successful, stored date:', result.rows[0].date);
 
     res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('ATNT API: Error upserting daily summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Delete daily summary
-router.delete('/daily-summary/:date', async (req, res) => {
-  try {
+router.delete('/daily-summary/:date', asyncHandler(async (req, res) => {
     const { date } = req.params;
 
     const result = await queryATNT(
@@ -471,15 +441,10 @@ router.delete('/daily-summary/:date', async (req, res) => {
     );
 
     res.json({ message: 'Daily summary deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting daily summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Get offense summary for a specific date
-router.get('/offense-summary/:date', async (req, res) => {
-  try {
+router.get('/offense-summary/:date', asyncHandler(async (req, res) => {
     const { date } = req.params;
 
     const result = await queryATNT(
@@ -492,15 +457,10 @@ router.get('/offense-summary/:date', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching offense summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Upsert offense summary
-router.post('/offense-summary', async (req, res) => {
-  try {
+router.post('/offense-summary', asyncHandler(async (req, res) => {
     const { date, offense_data, created_by } = req.body;
 
     console.log('ATNT API: Upserting offense summary for date:', date);
@@ -539,15 +499,10 @@ router.post('/offense-summary', async (req, res) => {
     console.log('ATNT API: Offense upsert successful');
 
     res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('ATNT API: Error upserting offense summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Delete offense summary
-router.delete('/offense-summary/:date', async (req, res) => {
-  try {
+router.delete('/offense-summary/:date', asyncHandler(async (req, res) => {
     const { date } = req.params;
 
     const result = await queryATNT(
@@ -556,15 +511,10 @@ router.delete('/offense-summary/:date', async (req, res) => {
     );
 
     res.json({ message: 'Offense summary deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting offense summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 // Get daily summary date range
-router.get('/daily-summary/range/:startDate/:endDate', async (req, res) => {
-  try {
+router.get('/daily-summary/range/:startDate/:endDate', asyncHandler(async (req, res) => {
     const { startDate, endDate } = req.params;
 
     const result = await queryATNT(
@@ -575,10 +525,6 @@ router.get('/daily-summary/range/:startDate/:endDate', async (req, res) => {
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching daily summary range:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+  ));;
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { querySeniorCitizen } = require('./db-seniorcitizen');
+const { asyncHandler } = require('./errorHandler');
 
 console.log('Senior Citizen routes loaded');
 
@@ -44,120 +45,104 @@ const SENIOR_CITIZEN_STATIONS = [
 ];
 
 // Get all station names
-router.get('/stations', async (req, res) => {
-  try {
-    // Return hardcoded stations for Senior Citizen
-    const stations = SENIOR_CITIZEN_STATIONS.map(station_name => ({ station_name }));
-    res.json(stations);
-  } catch (error) {
-    console.error('Error fetching stations:', error);
-    res.status(500).json({ error: 'Failed to fetch stations' });
-  }
-});
+router.get('/stations', asyncHandler(async (req, res) => {
+  // Return hardcoded stations for Senior Citizen
+  const stations = SENIOR_CITIZEN_STATIONS.map(station_name => ({ station_name }));
+  res.json(stations);
+}));
 
 // Get registrations summary with filters
-router.get('/registrations', async (req, res) => {
-  try {
-    const {
-      startDate,
-      endDate,
-      stations,
-      email,
-      limit = 1000,
-      offset = 0
-    } = req.query;
+router.get('/registrations', asyncHandler(async (req, res) => {
+  const {
+    startDate,
+    endDate,
+    stations,
+    email,
+    limit = 1000,
+    offset = 0
+  } = req.query;
 
-    let query = `
-      SELECT
-        police_station,
-        status,
-        created_at
-      FROM registrations
-      WHERE 1=1
-    `;
-    const params = [];
-    let paramIndex = 1;
+  let query = `
+    SELECT
+      police_station,
+      status,
+      created_at
+    FROM registrations
+    WHERE 1=1
+  `;
+  const params = [];
+  let paramIndex = 1;
 
-    // Apply date filters
-    if (startDate && endDate) {
-      query += ` AND created_at >= $${paramIndex++} AND created_at <= $${paramIndex++}`;
-      params.push(startDate, endDate);
-    }
-
-    // Apply station filter
-    if (stations) {
-      const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
-    }
-
-    // Add ordering and pagination
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await querySeniorCitizen(query, params);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching registrations:', error);
-    res.status(500).json({ error: 'Failed to fetch registrations' });
+  // Apply date filters
+  if (startDate && endDate) {
+    query += ` AND created_at >= $${paramIndex++} AND created_at <= $${paramIndex++}`;
+    params.push(startDate, endDate);
   }
-});
+
+  // Apply station filter
+  if (stations) {
+    const stationList = Array.isArray(stations) ? stations : [stations];
+    query += ` AND police_station = ANY($${paramIndex++})`;
+    params.push(stationList);
+  }
+
+  // Add ordering and pagination
+  query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  params.push(parseInt(limit), parseInt(offset));
+
+  const result = await querySeniorCitizen(query, params);
+  res.json(result.rows);
+}));
 
 // Get registration counts for dashboard
-router.get('/dashboard/counts', async (req, res) => {
-  try {
-    const { startDate, endDate, stations } = req.query;
+router.get('/dashboard/counts', asyncHandler(async (req, res) => {
+  const { startDate, endDate, stations } = req.query;
 
-    let query = `
-      SELECT
-        police_station,
-        status,
-        created_at
-      FROM registrations
-      WHERE 1=1
-    `;
-    const params = [];
-    let paramIndex = 1;
+  let query = `
+    SELECT
+      police_station,
+      status,
+      created_at
+    FROM registrations
+    WHERE 1=1
+  `;
+  const params = [];
+  let paramIndex = 1;
 
-    // Apply date filters
-    if (startDate && endDate) {
-      query += ` AND created_at >= $${paramIndex++} AND created_at <= $${paramIndex++}`;
-      params.push(startDate, endDate);
-    }
-
-    // Apply station filter
-    if (stations) {
-      const stationList = Array.isArray(stations) ? stations : [stations];
-      query += ` AND police_station = ANY($${paramIndex++})`;
-      params.push(stationList);
-    }
-
-    const result = await querySeniorCitizen(query, params);
-
-    // Calculate counts
-    const counts = {
-      total: result.rows.length,
-      pending: 0,
-      verified: 0,
-      rejected: 0
-    };
-
-    result.rows.forEach(row => {
-      if (row.status === 'pending') counts.pending++;
-      else if (row.status === 'verified') counts.verified++;
-      else if (row.status === 'rejected') counts.rejected++;
-    });
-
-    res.json(counts);
-  } catch (error) {
-    console.error('Error fetching dashboard counts:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard counts' });
+  // Apply date filters
+  if (startDate && endDate) {
+    query += ` AND created_at >= $${paramIndex++} AND created_at <= $${paramIndex++}`;
+    params.push(startDate, endDate);
   }
-});
+
+  // Apply station filter
+  if (stations) {
+    const stationList = Array.isArray(stations) ? stations : [stations];
+    query += ` AND police_station = ANY($${paramIndex++})`;
+    params.push(stationList);
+  }
+
+  const result = await querySeniorCitizen(query, params);
+
+  // Calculate counts
+  const counts = {
+    total: result.rows.length,
+    pending: 0,
+    verified: 0,
+    rejected: 0
+  };
+
+  result.rows.forEach(row => {
+    if (row.status === 'pending') counts.pending++;
+    else if (row.status === 'verified') counts.verified++;
+    else if (row.status === 'rejected') counts.rejected++;
+  });
+
+  res.json(counts);
+}));
 
 // Get station-wise registration data
-router.get('/stations/data', async (req, res) => {
-  try {
+router.get('/stations/data', asyncHandler(async (req, res) => {
     const { startDate, endDate, stations } = req.query;
 
     let query = `
@@ -208,15 +193,10 @@ router.get('/stations/data', async (req, res) => {
     });
 
     res.json(Array.from(stationMap.values()));
-  } catch (error) {
-    console.error('Error fetching station data:', error);
-    res.status(500).json({ error: 'Failed to fetch station data' });
-  }
-});
+  ));;
 
 // Get active users count
-router.get('/active-users', async (req, res) => {
-  try {
+router.get('/active-users', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     let query = `
@@ -236,15 +216,10 @@ router.get('/active-users', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching active users:', error);
-    res.status(500).json({ error: 'Failed to fetch active users' });
-  }
-});
+  ));;
 
 // Get assigned services count for today
-router.get('/assigned-services', async (req, res) => {
-  try {
+router.get('/assigned-services', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     // Get today's date range
@@ -271,15 +246,10 @@ router.get('/assigned-services', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching assigned services:', error);
-    res.status(500).json({ error: 'Failed to fetch assigned services' });
-  }
-});
+  ));;
 
 // Get feedbacks count
-router.get('/feedbacks', async (req, res) => {
-  try {
+router.get('/feedbacks', asyncHandler(async (req, res) => {
     const { endDate, stations } = req.query;
 
     let query = `
@@ -304,15 +274,10 @@ router.get('/feedbacks', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching feedbacks:', error);
-    res.status(500).json({ error: 'Failed to fetch feedbacks' });
-  }
-});
+  ));;
 
 // Drill down: Get detailed registration data by status
-router.get('/drilldown/registrations', async (req, res) => {
-  try {
+router.get('/drilldown/registrations', asyncHandler(async (req, res) => {
     const { status, startDate, endDate, stations } = req.query;
 
     let query = `
@@ -360,15 +325,10 @@ router.get('/drilldown/registrations', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching drilldown data:', error);
-    res.status(500).json({ error: 'Failed to fetch drilldown data' });
-  }
-});
+  ));;
 
 // Drill down: Get active users details
-router.get('/drilldown/active-users', async (req, res) => {
-  try {
+router.get('/drilldown/active-users', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     let query = `
@@ -397,15 +357,10 @@ router.get('/drilldown/active-users', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching active users details:', error);
-    res.status(500).json({ error: 'Failed to fetch active users details' });
-  }
-});
+  ));;
 
 // Drill down: Get assigned services details
-router.get('/drilldown/assigned-services', async (req, res) => {
-  try {
+router.get('/drilldown/assigned-services', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     // Get today's date range
@@ -440,15 +395,10 @@ router.get('/drilldown/assigned-services', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching assigned services details:', error);
-    res.status(500).json({ error: 'Failed to fetch assigned services details' });
-  }
-});
+  ));;
 
 // Drill down: Get feedbacks details
-router.get('/drilldown/feedbacks', async (req, res) => {
-  try {
+router.get('/drilldown/feedbacks', asyncHandler(async (req, res) => {
     const { endDate, stations } = req.query;
 
     let query = `
@@ -481,15 +431,10 @@ router.get('/drilldown/feedbacks', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching feedbacks details:', error);
-    res.status(500).json({ error: 'Failed to fetch feedbacks details' });
-  }
-});
+  ));;
 
 // Get SOS alerts count for a specific date
-router.get('/sos-count', async (req, res) => {
-  try {
+router.get('/sos-count', asyncHandler(async (req, res) => {
     const { startDate, endDate, stations } = req.query;
 
     let query = `SELECT COUNT(*) as count FROM sos_alerts WHERE 1=1`;
@@ -511,15 +456,10 @@ router.get('/sos-count', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching SOS count:', error);
-    res.status(500).json({ error: 'Failed to fetch SOS count' });
-  }
-});
+  ));;
 
 // Get voice recordings count
-router.get('/voice-count', async (req, res) => {
-  try {
+router.get('/voice-count', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     let query = `SELECT COUNT(*) as count FROM audio_recordings WHERE 1=1`;
@@ -535,15 +475,10 @@ router.get('/voice-count', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching voice count:', error);
-    res.status(500).json({ error: 'Failed to fetch voice count' });
-  }
-});
+  ));;
 
 // Get complaints count
-router.get('/complaints-count', async (req, res) => {
-  try {
+router.get('/complaints-count', asyncHandler(async (req, res) => {
     const { stations } = req.query;
 
     let query = `SELECT COUNT(*) as count FROM complaints WHERE 1=1`;
@@ -559,15 +494,10 @@ router.get('/complaints-count', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching complaints count:', error);
-    res.status(500).json({ error: 'Failed to fetch complaints count' });
-  }
-});
+  ));;
 
 // Get user feedback count
-router.get('/user-feedback-count', async (req, res) => {
-  try {
+router.get('/user-feedback-count', asyncHandler(async (req, res) => {
     const { startDate, endDate, stations } = req.query;
 
     let query = `SELECT COUNT(*) as count FROM user_feedback WHERE 1=1`;
@@ -589,15 +519,10 @@ router.get('/user-feedback-count', async (req, res) => {
 
     const result = await querySeniorCitizen(query, params);
     res.json({ count: parseInt(result.rows[0].count) || 0 });
-  } catch (error) {
-    console.error('Error fetching user feedback count:', error);
-    res.status(500).json({ error: 'Failed to fetch user feedback count' });
-  }
-});
+  ));;
 
 // Drill down: Get SOS alerts details
-router.get('/drilldown/sos', async (req, res) => {
-  try {
+router.get('/drilldown/sos', asyncHandler(async (req, res) => {
     console.log('SOS drilldown request:', req.query);
     const { startDate, endDate, stations } = req.query;
 
@@ -657,8 +582,7 @@ router.get('/drilldown/sos', async (req, res) => {
 });
 
 // Drill down: Get voice recordings details
-router.get('/drilldown/voice', async (req, res) => {
-  try {
+router.get('/drilldown/voice', asyncHandler(async (req, res) => {
     console.log('Voice drilldown request:', req.query);
     const { stations } = req.query;
 
@@ -701,8 +625,7 @@ router.get('/drilldown/voice', async (req, res) => {
 });
 
 // Drill down: Get complaints details
-router.get('/drilldown/complaints', async (req, res) => {
-  try {
+router.get('/drilldown/complaints', asyncHandler(async (req, res) => {
     console.log('Complaints drilldown request:', req.query);
     const { stations } = req.query;
 
@@ -749,8 +672,7 @@ router.get('/drilldown/complaints', async (req, res) => {
 });
 
 // Drill down: Get user feedback details
-router.get('/drilldown/user-feedback', async (req, res) => {
-  try {
+router.get('/drilldown/user-feedback', asyncHandler(async (req, res) => {
     console.log('User feedback drilldown request:', req.query);
     const { startDate, endDate, stations } = req.query;
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryCCTNS } = require('./db-cctns');
+const { asyncHandler } = require('./errorHandler');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -111,185 +112,151 @@ initializeTable();
 router.use('/files', express.static(path.join(WINDOWS_SERVER_CONFIG.uploadPath)));
 
 // Upload PDF and save metadata
-router.post('/upload-pdf', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const { card_key, pdf_date, uploaded_by } = req.body;
-
-    if (!card_key || !pdf_date) {
-      return res.status(400).json({ error: 'card_key and pdf_date are required' });
-    }
-
-    // Map card_key to folder-friendly naming
-    const cardTypeMap = {
-      "sixty-days": "sixtydays",
-      "ninety-days": "ninetydays",
-      "e-saksha": "esaksha"
-    };
-
-    const cardType = cardTypeMap[card_key] || card_key.replace(/-/g, '');
-    const filename = `cctns_${cardType}_${pdf_date}_${Date.now()}.pdf`;
-
-    // Save file to Windows server (same location as IGotELearning)
-    const pdf_url = await saveToWindowsServer(req.file, filename);
-
-    // Validate uploaded_by UUID - only pass valid UUIDs to database
-    const validUploadedBy = uploaded_by && isValidUUID(uploaded_by) ? uploaded_by : null;
-
-    // Save to database
-    const result = await queryCCTNS(
-      `INSERT INTO cctns_pdfs (card_key, pdf_url, pdf_date, uploaded_by, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-       ON CONFLICT (card_key, pdf_date)
-       DO UPDATE SET pdf_url = $2, uploaded_by = $4, updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [card_key, pdf_url, pdf_date, validUploadedBy]
-    );
-
-    console.log('CCTNS: PDF uploaded to Windows server and metadata saved for card:', card_key, 'date:', pdf_date);
-    res.json({ message: 'PDF uploaded successfully', pdf_url: pdf_url, data: result.rows[0] });
-  } catch (error) {
-    console.error('CCTNS: Error uploading PDF:', error);
-    res.status(500).json({ error: 'Failed to upload PDF', details: error.message });
+router.post('/upload-pdf', upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
   }
-});
+
+  const { card_key, pdf_date, uploaded_by } = req.body;
+
+  if (!card_key || !pdf_date) {
+    return res.status(400).json({ error: 'card_key and pdf_date are required' });
+  }
+
+  // Map card_key to folder-friendly naming
+  const cardTypeMap = {
+    "sixty-days": "sixtydays",
+    "ninety-days": "ninetydays",
+    "e-saksha": "esaksha"
+  };
+
+  const cardType = cardTypeMap[card_key] || card_key.replace(/-/g, '');
+  const filename = `cctns_${cardType}_${pdf_date}_${Date.now()}.pdf`;
+
+  // Save file to Windows server (same location as IGotELearning)
+  const pdf_url = await saveToWindowsServer(req.file, filename);
+
+  // Validate uploaded_by UUID - only pass valid UUIDs to database
+  const validUploadedBy = uploaded_by && isValidUUID(uploaded_by) ? uploaded_by : null;
+
+  // Save to database
+  const result = await queryCCTNS(
+    `INSERT INTO cctns_pdfs (card_key, pdf_url, pdf_date, uploaded_by, updated_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (card_key, pdf_date)
+     DO UPDATE SET pdf_url = $2, uploaded_by = $4, updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
+    [card_key, pdf_url, pdf_date, validUploadedBy]
+  );
+
+  console.log('CCTNS: PDF uploaded to Windows server and metadata saved for card:', card_key, 'date:', pdf_date);
+  res.json({ message: 'PDF uploaded successfully', pdf_url: pdf_url, data: result.rows[0] });
+}));
 
 // Get PDFs by date
-router.get('/pdfs', async (req, res) => {
-  try {
-    const { date } = req.query;
+router.get('/pdfs', asyncHandler(async (req, res) => {
+  const { date } = req.query;
 
-    if (!date) {
-      return res.status(400).json({ error: 'Date parameter is required' });
-    }
-
-    const result = await queryCCTNS(
-      'SELECT card_key, pdf_url, pdf_date FROM cctns_pdfs WHERE pdf_date = $1',
-      [date]
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('CCTNS: Error fetching PDFs:', error);
-    res.status(500).json({ error: 'Failed to fetch PDFs', details: error.message });
+  if (!date) {
+    return res.status(400).json({ error: 'Date parameter is required' });
   }
-});
+
+  const result = await queryCCTNS(
+    'SELECT card_key, pdf_url, pdf_date FROM cctns_pdfs WHERE pdf_date = $1',
+    [date]
+  );
+
+  res.json(result.rows);
+}));
 
 // Upsert PDF data (insert or update)
-router.post('/pdfs', async (req, res) => {
-  try {
-    const { card_key, pdf_url, pdf_date, uploaded_by } = req.body;
+router.post('/pdfs', asyncHandler(async (req, res) => {
+  const { card_key, pdf_url, pdf_date, uploaded_by } = req.body;
 
-    if (!card_key || !pdf_url || !pdf_date) {
-      return res.status(400).json({ error: 'card_key, pdf_url, and pdf_date are required' });
-    }
-
-    // Validate uploaded_by UUID - only pass valid UUIDs to database
-    const validUploadedBy = uploaded_by && isValidUUID(uploaded_by) ? uploaded_by : null;
-
-    const result = await queryCCTNS(
-      `INSERT INTO cctns_pdfs (card_key, pdf_url, pdf_date, uploaded_by, updated_at)
-       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-       ON CONFLICT (card_key, pdf_date)
-       DO UPDATE SET pdf_url = $2, uploaded_by = $4, updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [card_key, pdf_url, pdf_date, validUploadedBy]
-    );
-
-    console.log('CCTNS: PDF data upserted successfully for card:', card_key, 'date:', pdf_date);
-    res.json({ message: 'PDF data saved successfully', data: result.rows[0] });
-  } catch (error) {
-    console.error('CCTNS: Error upserting PDF data:', error);
-    res.status(500).json({ error: 'Failed to save PDF data', details: error.message });
+  if (!card_key || !pdf_url || !pdf_date) {
+    return res.status(400).json({ error: 'card_key, pdf_url, and pdf_date are required' });
   }
-});
+
+  // Validate uploaded_by UUID - only pass valid UUIDs to database
+  const validUploadedBy = uploaded_by && isValidUUID(uploaded_by) ? uploaded_by : null;
+
+  const result = await queryCCTNS(
+    `INSERT INTO cctns_pdfs (card_key, pdf_url, pdf_date, uploaded_by, updated_at)
+     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+     ON CONFLICT (card_key, pdf_date)
+     DO UPDATE SET pdf_url = $2, uploaded_by = $4, updated_at = CURRENT_TIMESTAMP
+     RETURNING *`,
+    [card_key, pdf_url, pdf_date, validUploadedBy]
+  );
+
+  console.log('CCTNS: PDF data upserted successfully for card:', card_key, 'date:', pdf_date);
+  res.json({ message: 'PDF data saved successfully', data: result.rows[0] });
+}));
 
 // Delete PDF by date and card_key
-router.delete('/pdfs', async (req, res) => {
-  try {
-    const { date, card_key } = req.query;
+router.delete('/pdfs', asyncHandler(async (req, res) => {
+  const { date, card_key } = req.query;
 
-    if (!date || !card_key) {
-      return res.status(400).json({ error: 'Date and card_key parameters are required' });
-    }
-
-    // First get the PDF record to find the file path
-    const pdfRecord = await queryCCTNS(
-      'SELECT pdf_url FROM cctns_pdfs WHERE pdf_date = $1 AND card_key = $2',
-      [date, card_key]
-    );
-
-    if (pdfRecord.rows.length === 0) {
-      return res.status(404).json({ error: 'PDF not found' });
-    }
-
-    const pdfUrl = pdfRecord.rows[0].pdf_url;
-    const filename = pdfUrl.split('/').pop();
-
-    // Delete file from storage
-    const filePath = path.join(WINDOWS_SERVER_CONFIG.uploadPath, filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log('CCTNS: File deleted from storage:', filePath);
-    }
-
-    // Delete from database
-    const result = await queryCCTNS(
-      'DELETE FROM cctns_pdfs WHERE pdf_date = $1 AND card_key = $2 RETURNING *',
-      [date, card_key]
-    );
-
-    console.log('CCTNS: PDF deleted successfully for card:', card_key, 'date:', date);
-    res.json({ message: 'PDF deleted successfully', deleted: result.rows[0] });
-  } catch (error) {
-    console.error('CCTNS: Error deleting PDF:', error);
-    res.status(500).json({ error: 'Failed to delete PDF', details: error.message });
+  if (!date || !card_key) {
+    return res.status(400).json({ error: 'Date and card_key parameters are required' });
   }
-});
+
+  // First get the PDF record to find the file path
+  const pdfRecord = await queryCCTNS(
+    'SELECT pdf_url FROM cctns_pdfs WHERE pdf_date = $1 AND card_key = $2',
+    [date, card_key]
+  );
+
+  if (pdfRecord.rows.length === 0) {
+    return res.status(404).json({ error: 'PDF not found' });
+  }
+
+  const pdfUrl = pdfRecord.rows[0].pdf_url;
+  const filename = pdfUrl.split('/').pop();
+
+  // Delete file from storage
+  const filePath = path.join(WINDOWS_SERVER_CONFIG.uploadPath, filename);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+    console.log('CCTNS: File deleted from storage:', filePath);
+  }
+
+  // Delete from database
+  const result = await queryCCTNS(
+    'DELETE FROM cctns_pdfs WHERE pdf_date = $1 AND card_key = $2 RETURNING *',
+    [date, card_key]
+  );
+
+  console.log('CCTNS: PDF deleted successfully for card:', card_key, 'date:', date);
+  res.json({ message: 'PDF deleted successfully', deleted: result.rows[0] });
+}));
 
 // Get latest date with data
-router.get('/latest-date', async (req, res) => {
-  try {
-    const result = await queryCCTNS(
-      'SELECT pdf_date FROM cctns_pdfs ORDER BY pdf_date DESC LIMIT 1'
-    );
+router.get('/latest-date', asyncHandler(async (req, res) => {
+  const result = await queryCCTNS(
+    'SELECT pdf_date FROM cctns_pdfs ORDER BY pdf_date DESC LIMIT 1'
+  );
 
-    if (result.rows.length === 0) {
-      return res.json({ pdf_date: null });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('CCTNS: Error fetching latest date:', error);
-    res.status(500).json({ error: 'Failed to fetch latest date', details: error.message });
+  if (result.rows.length === 0) {
+    return res.json({ pdf_date: null });
   }
-});
+
+  res.json(result.rows[0]);
+}));
 
 // Get all available dates
-router.get('/dates', async (req, res) => {
-  try {
-    const result = await queryCCTNS(
-      'SELECT DISTINCT pdf_date FROM cctns_pdfs ORDER BY pdf_date DESC'
-    );
+router.get('/dates', asyncHandler(async (req, res) => {
+  const result = await queryCCTNS(
+    'SELECT DISTINCT pdf_date FROM cctns_pdfs ORDER BY pdf_date DESC'
+  );
 
-    res.json(result.rows);
-  } catch (error) {
-    console.error('CCTNS: Error fetching dates:', error);
-    res.status(500).json({ error: 'Failed to fetch dates', details: error.message });
-  }
-});
+  res.json(result.rows);
+}));
 
 // Health check endpoint
-router.get('/health', async (req, res) => {
-  try {
-    await queryCCTNS('SELECT 1');
-    res.json({ status: 'healthy', message: 'CCTNS database connection is working' });
-  } catch (error) {
-    res.status(500).json({ status: 'unhealthy', message: 'CCTNS database connection failed', details: error.message });
-  }
-});
+router.get('/health', asyncHandler(async (req, res) => {
+  await queryCCTNS('SELECT 1');
+  res.json({ status: 'healthy', message: 'CCTNS database connection is working' });
+}));
 
 module.exports = router;

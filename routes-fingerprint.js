@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryFingerprint } = require('./db-fingerprint');
+const { asyncHandler } = require('./errorHandler');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -50,7 +51,6 @@ const saveToWindowsServer = async (file, filename) => {
 
     // Ensure directory exists
     const dir = path.dirname(uploadPath);
-    try {
       if (!fs.existsSync(dir)) {
         console.log('Creating directory:', dir);
         fs.mkdirSync(dir, { recursive: true });
@@ -79,7 +79,6 @@ const saveToWindowsServer = async (file, filename) => {
 
 // Initialize the fingerprint_pdfs table if it doesn't exist
 const initializeTable = async () => {
-  try {
     await queryFingerprint(`
       CREATE TABLE IF NOT EXISTS fingerprint_pdfs (
         id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -110,87 +109,6 @@ const initializeTable = async () => {
     `);
 
     console.log('Fingerprint: Table initialized successfully');
-  } catch (error) {
-    console.error('Fingerprint: Error initializing table:', error);
-  }
-};
-
-// Initialize table on module load
-initializeTable();
-
-// Serve static files from the uploads directory
-router.use('/files', express.static(path.join(WINDOWS_SERVER_CONFIG.uploadPath)));
-
-// Upload PDF and save metadata
-router.post('/upload-pdf', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const { card_key, pdf_date, start_date, end_date, month, uploaded_by } = req.body;
-
-    if (!card_key || !pdf_date) {
-      return res.status(400).json({ error: 'card_key and pdf_date are required' });
-    }
-
-    // Normalize dates to YYYY-MM-DD format to handle timezone issues
-    const normalizeDate = (dateStr) => {
-      if (!dateStr) return null;
-      const date = new Date(dateStr);
-      // Get the date parts in local timezone to avoid UTC conversion
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const normalizedPdfDate = normalizeDate(pdf_date);
-    const normalizedStartDate = start_date ? normalizeDate(start_date) : null;
-    const normalizedEndDate = end_date ? normalizeDate(end_date) : null;
-
-    // Generate filename
-    let filename;
-    if (card_key === 'weekly' && normalizedStartDate && normalizedEndDate) {
-      filename = `fingerprint_weekly_${normalizedStartDate}_to_${normalizedEndDate}_${Date.now()}.pdf`;
-    } else if (card_key === 'monthly' && month) {
-      filename = `fingerprint_monthly_${month}_${Date.now()}.pdf`;
-    } else {
-      filename = `fingerprint_${card_key}_${normalizedPdfDate}_${Date.now()}.pdf`;
-    }
-
-    // Save file to Windows server (same location as IGotELearning)
-    const pdf_url = await saveToWindowsServer(req.file, filename);
-
-    // Validate uploaded_by UUID - only pass valid UUIDs to database
-    const validUploadedBy = uploaded_by && isValidUUID(uploaded_by) ? uploaded_by : null;
-
-    // Save to database
-    const result = await queryFingerprint(
-      `INSERT INTO fingerprint_pdfs (card_key, pdf_url, pdf_date, start_date, end_date, month, uploaded_by, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
-       ON CONFLICT (card_key, pdf_date)
-       DO UPDATE SET pdf_url = $2, start_date = $4, end_date = $5, month = $6, uploaded_by = $7, updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [card_key, pdf_url, normalizedPdfDate, normalizedStartDate, normalizedEndDate, month || null, validUploadedBy]
-    );
-
-    console.log('Fingerprint: PDF uploaded to Windows server and metadata saved for card:', card_key, 'date:', normalizedPdfDate);
-    res.json({ message: 'PDF uploaded successfully', pdf_url: pdf_url, data: result.rows[0] });
-  } catch (error) {
-    console.error('Fingerprint: Error uploading PDF:', error);
-    res.status(500).json({ error: 'Failed to upload PDF', details: error.message });
-  }
-});
-
-// Get PDFs by date
-router.get('/pdfs', async (req, res) => {
-  try {
-    const { date } = req.query;
-
-    if (!date) {
-      return res.status(400).json({ error: 'Date parameter is required' });
-    }
 
     const result = await queryFingerprint(
       'SELECT card_key, pdf_url, start_date, end_date, month, pdf_date FROM fingerprint_pdfs WHERE pdf_date = $1',
@@ -198,15 +116,10 @@ router.get('/pdfs', async (req, res) => {
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Fingerprint: Error fetching PDFs:', error);
-    res.status(500).json({ error: 'Failed to fetch PDFs', details: error.message });
-  }
-});
+  ));;
 
 // Get PDFs by card type and date range
-router.get('/pdfs-by-card', async (req, res) => {
-  try {
+router.get('/pdfs-by-card', asyncHandler(async (req, res) => {
     const { card_key } = req.query;
 
     if (!card_key) {
@@ -222,15 +135,10 @@ router.get('/pdfs-by-card', async (req, res) => {
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Fingerprint: Error fetching PDFs:', error);
-    res.status(500).json({ error: 'Failed to fetch PDFs', details: error.message });
-  }
-});
+  ));;
 
 // Get PDF by specific conditions (month or date range)
-router.get('/pdf-by-conditions', async (req, res) => {
-  try {
+router.get('/pdf-by-conditions', asyncHandler(async (req, res) => {
     const { card_key, month, start_date, end_date } = req.query;
 
     if (!card_key) {
@@ -270,15 +178,10 @@ router.get('/pdf-by-conditions', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Fingerprint: Error fetching PDF:', error);
-    res.status(500).json({ error: 'Failed to fetch PDF', details: error.message });
-  }
-});
+  ));;
 
 // Delete PDF by conditions
-router.delete('/pdfs', async (req, res) => {
-  try {
+router.delete('/pdfs', asyncHandler(async (req, res) => {
     const { card_key, month, start_date, end_date, date } = req.query;
 
     if (!card_key) {
@@ -344,15 +247,10 @@ router.delete('/pdfs', async (req, res) => {
 
     console.log('Fingerprint: PDF(s) deleted successfully for card:', card_key);
     res.json({ message: 'PDF(s) deleted successfully', deleted: deleteResult.rows });
-  } catch (error) {
-    console.error('Fingerprint: Error deleting PDF:', error);
-    res.status(500).json({ error: 'Failed to delete PDF', details: error.message });
-  }
-});
+  ));;
 
 // Get latest date with data
-router.get('/latest-date', async (req, res) => {
-  try {
+router.get('/latest-date', asyncHandler(async (req, res) => {
     const result = await queryFingerprint(
       'SELECT pdf_date FROM fingerprint_pdfs ORDER BY pdf_date DESC LIMIT 1'
     );
@@ -362,20 +260,9 @@ router.get('/latest-date', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Fingerprint: Error fetching latest date:', error);
-    res.status(500).json({ error: 'Failed to fetch latest date', details: error.message });
-  }
-});
+  ));;
 
 // Health check endpoint
-router.get('/health', async (req, res) => {
-  try {
+router.get('/health', asyncHandler(async (req, res) => {
     await queryFingerprint('SELECT 1');
     res.json({ status: 'healthy', message: 'Fingerprint database connection is working' });
-  } catch (error) {
-    res.status(500).json({ status: 'unhealthy', message: 'Fingerprint database connection failed', details: error.message });
-  }
-});
-
-module.exports = router;

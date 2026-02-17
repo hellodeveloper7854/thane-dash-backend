@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryEmergency112 } = require('./db-emergency112');
+const { asyncHandler } = require('./errorHandler');
 
 // Initialize the emergency112_daily_summary table if it doesn't exist
 const initializeTable = async () => {
@@ -69,8 +70,7 @@ const initializeTable = async () => {
 initializeTable();
 
 // Get emergency data by date
-router.get('/data', async (req, res) => {
-  try {
+router.get('/data', asyncHandler(async (req, res) => {
     const { date } = req.query;
 
     if (!date) {
@@ -87,15 +87,10 @@ router.get('/data', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Emergency112: Error fetching data:', error);
-    res.status(500).json({ error: 'Failed to fetch emergency data', details: error.message });
-  }
-});
+  ));;
 
 // Upsert emergency daily summary (insert or update)
-router.post('/data', async (req, res) => {
-  try {
+router.post('/data', asyncHandler(async (req, res) => {
     const { date, total_calls, avg_response_time, summary_data, calls_data, created_by, time_range_from, time_range_to } = req.body;
 
     if (!date) {
@@ -113,16 +108,11 @@ router.post('/data', async (req, res) => {
 
     console.log('Emergency112: Daily summary upserted successfully for date:', date);
     res.json({ message: 'Emergency data saved successfully', data: result.rows[0] });
-  } catch (error) {
-    console.error('Emergency112: Error upserting data:', error);
-    res.status(500).json({ error: 'Failed to save emergency data', details: error.message });
-  }
-});
+  ));;
 
 // Bulk upsert emergency data (for multiple emergency types at once)
 // Note: This endpoint is kept for backward compatibility but routes to the single-record structure
-router.post('/bulk-data', async (req, res) => {
-  try {
+router.post('/bulk-data', asyncHandler(async (req, res) => {
     const { date, total_calls, avg_response_time, summary_data, calls_data, created_by, time_range_from, time_range_to } = req.body;
 
     if (!date) {
@@ -141,15 +131,10 @@ router.post('/bulk-data', async (req, res) => {
 
     console.log('Emergency112: Bulk data upserted successfully for date:', date);
     res.json({ message: 'Emergency data saved successfully', data: [result.rows[0]], count: 1 });
-  } catch (error) {
-    console.error('Emergency112: Error bulk upserting data:', error);
-    res.status(500).json({ error: 'Failed to save emergency data', details: error.message });
-  }
-});
+  ));;
 
 // Delete emergency data by date
-router.delete('/data', async (req, res) => {
-  try {
+router.delete('/data', asyncHandler(async (req, res) => {
     const { date } = req.query;
 
     if (!date) {
@@ -163,15 +148,10 @@ router.delete('/data', async (req, res) => {
 
     console.log('Emergency112: Data deleted successfully for date:', date);
     res.json({ message: 'Emergency data deleted successfully', deleted: result.rows });
-  } catch (error) {
-    console.error('Emergency112: Error deleting data:', error);
-    res.status(500).json({ error: 'Failed to delete emergency data', details: error.message });
-  }
-});
+  ));;
 
 // Get latest date with data
-router.get('/latest-date', async (req, res) => {
-  try {
+router.get('/latest-date', asyncHandler(async (req, res) => {
     const result = await queryEmergency112(
       'SELECT date FROM emergency112_daily_summary ORDER BY date DESC LIMIT 1'
     );
@@ -181,29 +161,19 @@ router.get('/latest-date', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Emergency112: Error fetching latest date:', error);
-    res.status(500).json({ error: 'Failed to fetch latest date', details: error.message });
-  }
-});
+  ));;
 
 // Get all available dates
-router.get('/dates', async (req, res) => {
-  try {
+router.get('/dates', asyncHandler(async (req, res) => {
     const result = await queryEmergency112(
       'SELECT DISTINCT date FROM emergency112_daily_summary ORDER BY date DESC'
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Emergency112: Error fetching dates:', error);
-    res.status(500).json({ error: 'Failed to fetch dates', details: error.message });
-  }
-});
+  ));;
 
 // Health check endpoint
-router.get('/health', async (req, res) => {
-  try {
+router.get('/health', asyncHandler(async (req, res) => {
     await queryEmergency112('SELECT 1');
     res.json({ status: 'healthy', message: 'Emergency112 database connection is working' });
   } catch (error) {
@@ -256,8 +226,7 @@ const initializeCallsTable = async () => {
 initializeCallsTable();
 
 // Get call events by date
-router.get('/calls', async (req, res) => {
-  try {
+router.get('/calls', asyncHandler(async (req, res) => {
     const { date } = req.query;
 
     if (!date) {
@@ -270,15 +239,10 @@ router.get('/calls', async (req, res) => {
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Emergency112: Error fetching call events:', error);
-    res.status(500).json({ error: 'Failed to fetch call events', details: error.message });
-  }
-});
+  ));;
 
 // Create new call event
-router.post('/calls', async (req, res) => {
-  try {
+router.post('/calls', asyncHandler(async (req, res) => {
     const {
       date,
       event_id,
@@ -304,15 +268,10 @@ router.post('/calls', async (req, res) => {
 
     console.log('Emergency112: Call event created successfully');
     res.status(201).json({ message: 'Call event created successfully', data: result.rows[0] });
-  } catch (error) {
-    console.error('Emergency112: Error creating call event:', error);
-    res.status(500).json({ error: 'Failed to create call event', details: error.message });
-  }
-});
+  ));;
 
 // Delete call event by ID
-router.delete('/calls/:id', async (req, res) => {
-  try {
+router.delete('/calls/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     const result = await queryEmergency112(
@@ -326,10 +285,6 @@ router.delete('/calls/:id', async (req, res) => {
 
     console.log('Emergency112: Call event deleted successfully');
     res.json({ message: 'Call event deleted successfully' });
-  } catch (error) {
-    console.error('Emergency112: Error deleting call event:', error);
-    res.status(500).json({ error: 'Failed to delete call event', details: error.message });
-  }
-});
+  ));;
 
 module.exports = router;

@@ -1,0 +1,161 @@
+const nodemailer = require('nodemailer');
+
+// Email configuration
+const emailConfig = {
+  service: 'gmail',
+  auth: {
+    user: 'dhyasdevelopers@gmail.com',
+    pass: 'sipr sxlo rwhr plre'
+  }
+};
+
+// Create email transporter
+const transporter = nodemailer.createTransport(emailConfig);
+
+// Verify email configuration on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('Email configuration error:', error);
+  } else {
+    console.log('Email server is ready to send messages');
+  }
+});
+
+/**
+ * Send error email notification
+ * @param {Object} errorDetails - Error details object
+ * @param {string} errorDetails.endpoint - The API endpoint where error occurred
+ * @param {string} errorDetails.method - HTTP method (GET, POST, etc.)
+ * @param {Error} errorDetails.error - The actual error object
+ * @param {Object} errorDetails.requestBody - Request body (if applicable)
+ * @param {Object} errorDetails.requestParams - Request parameters (if applicable)
+ * @param {Object} errorDetails.query - Query parameters (if applicable)
+ * @param {string} errorDetails.timestamp - Error timestamp
+ */
+async function sendErrorEmail(errorDetails) {
+  const {
+    endpoint,
+    method,
+    error,
+    requestBody,
+    requestParams,
+    query,
+    timestamp
+  } = errorDetails;
+
+  // Format error details for email
+  const errorStack = error.stack || 'No stack trace available';
+  const errorMessage = error.message || 'Unknown error';
+  const errorCode = error.code || 'N/A';
+  const errorStatus = error.status || 'N/A';
+
+  // Build email content
+  const mailOptions = {
+    from: 'thane-dashboard <dhyasdevelopers@gmail.com>',
+    to: 'dhyasdevelopers@gmail.com',
+    subject: `🚨 Error Alert - ${method} ${endpoint}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #d32f2f;">🚨 Error Detected in Thane Dashboard</h2>
+
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">Error Details</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px; font-weight: bold; width: 150px;">Timestamp:</td>
+              <td style="padding: 8px;">${timestamp || new Date().toISOString()}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">Source:</td>
+              <td style="padding: 8px;">thane-dashboard</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">Endpoint:</td>
+              <td style="padding: 8px;"><code style="background: #e0e0e0; padding: 2px 6px; border-radius: 3px;">${method} ${endpoint}</code></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">Error Message:</td>
+              <td style="padding: 8px; color: #d32f2f;"><strong>${errorMessage}</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">Error Code:</td>
+              <td style="padding: 8px;">${errorCode}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-weight: bold;">HTTP Status:</td>
+              <td style="padding: 8px;">${errorStatus}</td>
+            </tr>
+          </table>
+        </div>
+
+        ${requestParams ? `
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">Request Parameters</h3>
+          <pre style="background: white; padding: 10px; border-radius: 3px; overflow-x: auto;">${JSON.stringify(requestParams, null, 2)}</pre>
+        </div>
+        ` : ''}
+
+        ${query ? `
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">Query Parameters</h3>
+          <pre style="background: white; padding: 10px; border-radius: 3px; overflow-x: auto;">${JSON.stringify(query, null, 2)}</pre>
+        </div>
+        ` : ''}
+
+        ${requestBody ? `
+        <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">Request Body</h3>
+          <pre style="background: white; padding: 10px; border-radius: 3px; overflow-x: auto;">${JSON.stringify(requestBody, null, 2)}</pre>
+        </div>
+        ` : ''}
+
+        <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0;">Stack Trace</h3>
+          <pre style="background: white; padding: 10px; border-radius: 3px; overflow-x: auto; font-size: 12px;">${errorStack}</pre>
+        </div>
+
+        <div style="background-color: #fafafa; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3;">
+          <p style="margin: 0;">This error was automatically generated by the Thane Dashboard error monitoring system.</p>
+        </div>
+      </div>
+    `,
+    text: `
+Error Detected in Thane Dashboard
+==================================
+
+Timestamp: ${timestamp || new Date().toISOString()}
+Source: thane-dashboard
+Endpoint: ${method} ${endpoint}
+
+Error Message: ${errorMessage}
+Error Code: ${errorCode}
+HTTP Status: ${errorStatus}
+
+${requestParams ? `Request Parameters:\n${JSON.stringify(requestParams, null, 2)}\n` : ''}
+
+${query ? `Query Parameters:\n${JSON.stringify(query, null, 2)}\n` : ''}
+
+${requestBody ? `Request Body:\n${JSON.stringify(requestBody, null, 2)}\n` : ''}
+
+Stack Trace:
+-----------
+${errorStack}
+
+---
+This error was automatically generated by the Thane Dashboard error monitoring system.
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Error email sent successfully:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (emailError) {
+    console.error('Failed to send error email:', emailError);
+    return { success: false, error: emailError.message };
+  }
+}
+
+module.exports = {
+  sendErrorEmail
+};

@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const db = require('./db'); // SmartHQ - uses DB_DATABASE_SMARTHQ
 const dbLMS = require('./db_lms'); // LMS - uses DB_DATABASE_LMS
+const { errorHandler, asyncHandler } = require('./errorHandler');
 
 const app = express();
 
@@ -76,73 +77,69 @@ app.get('/triggers', (req, res) => {
 });
 
 // SmartHQ Endpoints - Uses DB_DATABASE_SMARTHQ (hqmangemntsystemprod)
-app.get('/api/smarthq/dashboard', (req, res) => {
+app.get('/api/smarthq/dashboard', (req, res, next) => {
   db.query('CALL GetDashboardCardData(1)', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/dashboard-card-determinants', (req, res) => {
+app.get('/api/smarthq/dashboard-card-determinants', (req, res, next) => {
   db.query('CALL sp_GetDashBoardCardAttendence(1)', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/card-data-login', (req, res) => {
+app.get('/api/smarthq/card-data-login', (req, res, next) => {
   console.log('Calling sp_GetCardDataLogin on SmartHQ database...');
   db.query('CALL sp_GetCardDataLogin(1)', (err, results) => {
     if (err) {
       console.error('sp_GetCardDataLogin error:', err);
-      return res.status(500).json({
-        error: err.message,
-        code: err.code,
-        sqlState: err.sqlState
-      });
+      return next(err);
     }
     console.log('sp_GetCardDataLogin success');
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/leave-report', (req, res) => {
+app.get('/api/smarthq/leave-report', (req, res, next) => {
   db.query('CALL GetDailyLeaveReportDashboard(1)', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/daily-duty-insights', (req, res) => {
+app.get('/api/smarthq/daily-duty-insights', (req, res, next) => {
   db.query('CALL GetDailyDutyInsightDashboard(1)', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/leave-employee-by-post-gender', (req, res) => {
+app.get('/api/smarthq/leave-employee-by-post-gender', (req, res, next) => {
   db.query('CALL GetLeaveEmpByPostandGender()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/smarthq/count-employee-location', (req, res) => {
+app.get('/api/smarthq/count-employee-location', (req, res, next) => {
   db.query('CALL GetEmpLocationByPostandGender()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
 // LMS Endpoints - Uses DB_DATABASE_LMS (lmstest)
-app.get('/api/lms/dashboard', (req, res) => {
+app.get('/api/lms/dashboard', (req, res, next) => {
   dbLMS.query('CALL GetDashboardData()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/dashboard2', (req, res) => {
+app.get('/api/lms/dashboard2', (req, res, next) => {
   const policeStationId = req.query.policeStationId;
 
   if (!policeStationId) {
@@ -154,7 +151,7 @@ app.get('/api/lms/dashboard2', (req, res) => {
     [policeStationId],
     (err, results) => {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return next(err);
       }
 
       // results[0] contains first resultset, results[1] second, etc.
@@ -164,50 +161,50 @@ app.get('/api/lms/dashboard2', (req, res) => {
 });
 
 
-app.get('/api/lms/pending-licenses', (req, res) => {
+app.get('/api/lms/pending-licenses', (req, res, next) => {
   dbLMS.query('CALL GetLicenceQuery()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/pending-applications', (req, res) => {
+app.get('/api/lms/pending-applications', (req, res, next) => {
   dbLMS.query('CALL GetApplicationQuery()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/pending-notices', (req, res) => {
+app.get('/api/lms/pending-notices', (req, res, next) => {
   dbLMS.query('CALL GetShowCauseNotice()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/piechart-data', (req, res) => {
+app.get('/api/lms/piechart-data', (req, res, next) => {
   dbLMS.query('CALL GetPieChartsData()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/dashboard-by-police-station', (req, res) => {
+app.get('/api/lms/dashboard-by-police-station', (req, res, next) => {
   dbLMS.query('CALL LicenceWeaponMgtRpt()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/PoliceStationLicenceCancellationYearWiseRpt', (req, res) => {
+app.get('/api/lms/PoliceStationLicenceCancellationYearWiseRpt', (req, res, next) => {
   dbLMS.query('CALL PoliceStationIssuedAndCancelledYearWiseRpt()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
 
-app.get('/api/lms/licenses-by-year-type-status', (req, res) => {
+app.get('/api/lms/licenses-by-year-type-status', (req, res, next) => {
   const { year, licenceTypeName, status } = req.query;
 
   // Validation
@@ -241,7 +238,7 @@ app.get('/api/lms/licenses-by-year-type-status', (req, res) => {
 });
 
 
-app.post('/api/lms/filtered-data', (req, res) => {
+app.post('/api/lms/filtered-data', (req, res, next) => {
   const { cardIndex, categoryName } = req.body;
 
   if (!cardIndex || !categoryName) {
@@ -254,7 +251,7 @@ app.post('/api/lms/filtered-data', (req, res) => {
     (err, results) => {
       if (err) {
         console.error("SQL Error:", err);
-        return res.status(500).json({ error: err.message });
+        return next(err);
       }
 
       // results[0] contains SELECT output
@@ -265,7 +262,7 @@ app.post('/api/lms/filtered-data', (req, res) => {
 });
 
 
-app.get('/api/lms/licenses-list-by-type', (req, res) => {
+app.get('/api/lms/licenses-list-by-type', (req, res, next) => {
   const { type } = req.query;
 
   if (!type) {
@@ -273,13 +270,13 @@ app.get('/api/lms/licenses-list-by-type', (req, res) => {
   }
 
   dbLMS.query(`CALL GetLicenceListByType(?)`, [type], (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
 
-app.get('/api/lms/licence-query-reports', (req, res) => {
+app.get('/api/lms/licence-query-reports', (req, res, next) => {
   const { reportType } = req.query;
 
   if (!reportType) {
@@ -299,23 +296,23 @@ app.get('/api/lms/licence-query-reports', (req, res) => {
 
 
 
-app.get('/api/lms/pending-licenses-by-police-station', (req, res) => {
+app.get('/api/lms/pending-licenses-by-police-station', (req, res, next) => {
   dbLMS.query('CALL GetLicenceQueryByPoliceStation()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/pending-applications-by-police-station', (req, res) => {
+app.get('/api/lms/pending-applications-by-police-station', (req, res, next) => {
   dbLMS.query('CALL GetApplicationQueryByPoliceStation()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
 
-app.get('/api/lms/pending-notices-by-police-station', (req, res) => {
+app.get('/api/lms/pending-notices-by-police-station', (req, res, next) => {
   dbLMS.query('CALL GetShowCauseNoticeByPoliceStation()', (err, results) => {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) return next(err);
     res.json(results);
   });
 });
@@ -323,7 +320,7 @@ app.get('/api/lms/pending-notices-by-police-station', (req, res) => {
 
 
 
-app.get('/api/lms/piechart-data-by-police-station', (req, res) => {
+app.get('/api/lms/piechart-data-by-police-station', (req, res, next) => {
   const policeStationId = req.query.policeStationId;
 
   // Validate required parameter
@@ -349,32 +346,22 @@ app.get('/api/lms/piechart-data-by-police-station', (req, res) => {
 
 
 // WhatsApp Chatbot Data Proxy
-app.get('/api/chatbot-data', async (req, res) => {
-  try {
-    const response = await axios.get('https://nirbhaythane.org/thane-admin/chatbot_data.php');
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error fetching chatbot data:', error);
-    res.status(500).json({ error: 'Failed to fetch chatbot data' });
-  }
-});
+app.get('/api/chatbot-data', asyncHandler(async (req, res) => {
+  const response = await axios.get('https://nirbhaythane.org/thane-admin/chatbot_data.php');
+  res.json(response.data);
+}));
 
 // Police Welfare Dashboard Data Proxy
-app.get('/api/welfare-dashboard', async (req, res) => {
-  try {
-    const response = await axios.get('https://dgtraining.in/Police_welfare_management/api/welfare-dashboard', {
-      headers: {
-        'X-Api-Key': "a52f700ff79ad08e39ef17812301ce04c0c6b288abc5bac23f1171328e6fe534"
-      }
-    });
-    console.log('Welfare API response status:', response.status);
-    console.log('Welfare API response data:', response.data);
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error fetching welfare dashboard data:', error.response ? error.response.data : error.message);
-    res.status(500).json({ error: 'Failed to fetch welfare dashboard data', details: error.message });
-  }
-});
+app.get('/api/welfare-dashboard', asyncHandler(async (req, res) => {
+  const response = await axios.get('https://dgtraining.in/Police_welfare_management/api/welfare-dashboard', {
+    headers: {
+      'X-Api-Key': "a52f700ff79ad08e39ef17812301ce04c0c6b288abc5bac23f1171328e6fe534"
+    }
+  });
+  console.log('Welfare API response status:', response.status);
+  console.log('Welfare API response data:', response.data);
+  res.json(response.data);
+}));
 
 // Police Mitra API Routes
 app.use('/api/policemitra', policeMitraRoutes);
@@ -420,6 +407,14 @@ app.use('/api/policewelfare', policeWelfareRoutes);
 app.use('/api/siddhihall', siddhiHallRoutes);
 
 // Add more routes later
+
+// 404 handler - must be before the global error handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Global error handler - must be last
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

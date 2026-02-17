@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { queryPortalLinks } = require('./db-portallinks');
+const { asyncHandler } = require('./errorHandler');
 
 // Initialize the useful_portal_links table if it doesn't exist
 const initializeTable = async () => {
@@ -49,22 +50,16 @@ const initializeTable = async () => {
 initializeTable();
 
 // Get all portal links ordered by sr_no
-router.get('/links', async (req, res) => {
-  try {
+router.get('/links', asyncHandler(async (req, res) => {
     const result = await queryPortalLinks(
       'SELECT * FROM useful_portal_links ORDER BY sr_no ASC'
     );
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('PortalLinks: Error fetching links:', error);
-    res.status(500).json({ error: 'Failed to fetch portal links', details: error.message });
-  }
-});
+  ));;
 
 // Get a single portal link by ID
-router.get('/links/:id', async (req, res) => {
-  try {
+router.get('/links/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     const result = await queryPortalLinks(
@@ -77,15 +72,10 @@ router.get('/links/:id', async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (error) {
-    console.error('PortalLinks: Error fetching link:', error);
-    res.status(500).json({ error: 'Failed to fetch portal link', details: error.message });
-  }
-});
+  ));;
 
 // Create a new portal link
-router.post('/links', async (req, res) => {
-  try {
+router.post('/links', asyncHandler(async (req, res) => {
     const { sr_no, service, department_agency, hierarchy_level, website, email, description } = req.body;
 
     if (!sr_no || !service || !department_agency || !website || !description) {
@@ -116,8 +106,7 @@ router.post('/links', async (req, res) => {
 });
 
 // Update a portal link
-router.put('/links/:id', async (req, res) => {
-  try {
+router.put('/links/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { sr_no, service, department_agency, hierarchy_level, website, email, description } = req.body;
 
@@ -154,8 +143,7 @@ router.put('/links/:id', async (req, res) => {
 });
 
 // Delete a portal link
-router.delete('/links/:id', async (req, res) => {
-  try {
+router.delete('/links/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     const result = await queryPortalLinks(
@@ -169,15 +157,10 @@ router.delete('/links/:id', async (req, res) => {
 
     console.log('PortalLinks: Link deleted successfully with id:', id);
     res.json({ message: 'Portal link deleted successfully', deleted: result.rows[0] });
-  } catch (error) {
-    console.error('PortalLinks: Error deleting link:', error);
-    res.status(500).json({ error: 'Failed to delete portal link', details: error.message });
-  }
-});
+  ));;
 
 // Bulk insert portal links
-router.post('/bulk-insert', async (req, res) => {
-  try {
+router.post('/bulk-insert', asyncHandler(async (req, res) => {
     const { links } = req.body;
 
     if (!Array.isArray(links) || links.length === 0) {
@@ -235,15 +218,10 @@ router.post('/bulk-insert', async (req, res) => {
       data: results,
       failed: errors
     });
-  } catch (error) {
-    console.error('PortalLinks: Error in bulk insert:', error);
-    res.status(500).json({ error: 'Failed to complete bulk insert', details: error.message });
-  }
-});
+  ));;
 
 // Health check endpoint
-router.get('/health', async (req, res) => {
-  try {
+router.get('/health', asyncHandler(async (req, res) => {
     await queryPortalLinks('SELECT 1');
     res.json({ status: 'healthy', message: 'PortalLinks database connection is working' });
   } catch (error) {
